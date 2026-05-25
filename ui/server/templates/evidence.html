@@ -66,7 +66,10 @@ function loadEvidence() {
 
 function viewEvidence(path) {
   const v = document.getElementById('viewer');
-  document.getElementById('viewerImg').src = '/api/evidence/view?path=' + encodeURIComponent(path);
+  const img = document.getElementById('viewerImg');
+  img.src = ''; // clear first
+  img.src = '/api/evidence/view?path=' + encodeURIComponent(path);
+  img.onerror = function() { alert('无法加载图片，文件可能已损坏'); };
   v.style.display = 'block';
 }
 

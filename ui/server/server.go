@@ -158,6 +158,7 @@ func (s *Server) handleEvidenceList(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		rel, _ := filepath.Rel(root, path)
+		rel = strings.ReplaceAll(rel, "\\", "/")
 		dateDir := filepath.Dir(rel)
 		name := info.Name()
 		isEnc := strings.HasSuffix(name, ".enc")
@@ -193,8 +194,16 @@ func (s *Server) handleEvidenceView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing path", http.StatusBadRequest)
 		return
 	}
-
+	rel = strings.ReplaceAll(rel, "/", "\\")
 	fullPath := filepath.Join(s.cfg.Storage.Path, rel)
+
+	// Security: prevent directory traversal
+	absRoot, _ := filepath.Abs(s.cfg.Storage.Path)
+	absPath, _ := filepath.Abs(fullPath)
+	if !strings.HasPrefix(absPath, absRoot) {
+		http.Error(w, "invalid path", http.StatusForbidden)
+		return
+	}
 
 	data, err := os.ReadFile(fullPath)
 	if err != nil {
