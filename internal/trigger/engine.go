@@ -150,8 +150,12 @@ func (e *Engine) ManualTrigger(source string) {
 		path = encPath
 	}
 
-	e.notify("证据卫士", fmt.Sprintf("截图已保存: %s", path))
-	log.Printf("[取证] 截图已保存: %s\n", path)
+	label := "截图"
+	if e.cfg.Storage.Encrypt {
+		label = "加密截图"
+	}
+	e.notify("证据卫士", fmt.Sprintf("%s已保存: %s", label, path))
+	log.Printf("[取证] %s已保存: %s\n", label, path)
 }
 
 func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo) {

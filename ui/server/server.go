@@ -116,6 +116,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		if updated.Storage.MaxSizeGB > 0 {
 			s.cfg.Storage.MaxSizeGB = updated.Storage.MaxSizeGB
 		}
+		s.cfg.Storage.Encrypt = updated.Storage.Encrypt
 		if updated.Hotkey.Modifiers != 0 {
 			s.cfg.Hotkey.Modifiers = updated.Hotkey.Modifiers
 		}
