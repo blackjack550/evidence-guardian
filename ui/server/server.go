@@ -6,10 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"evidence-guardian/internal/config"
+	"evidence-guardian/internal/crypto"
 	"evidence-guardian/internal/trigger"
 )
 
@@ -38,10 +44,15 @@ func (s *Server) Start(ctx context.Context) error {
 	tmpl := template.Must(template.New("").ParseFS(templateFS, "templates/*.html"))
 	mux.HandleFunc("/", s.handlePage(tmpl, "index.html"))
 
+	// Evidence page
+	mux.HandleFunc("/evidence", s.handlePage(tmpl, "evidence.html"))
+
 	// API
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/trigger", s.handleTrigger)
 	mux.HandleFunc("/api/status", s.handleStatus)
+	mux.HandleFunc("/api/evidence", s.handleEvidenceList)
+	mux.HandleFunc("/api/evidence/view", s.handleEvidenceView)
 
 	s.server = &http.Server{
 		Handler: mux,
@@ -133,6 +144,74 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"ocr_enabled":   s.cfg.OCR.Enabled,
 		"targets_count": len(s.cfg.Targets),
 	})
+}
+
+func (s *Server) handleEvidenceList(w http.ResponseWriter, r *http.Request) {
+	root := s.cfg.Storage.Path
+	var files []map[string]interface{}
+
+	filepath.Walk(root, func(path string, info fs.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".enc") && !strings.HasSuffix(path, ".png") {
+			return nil
+		}
+		rel, _ := filepath.Rel(root, path)
+		dateDir := filepath.Dir(rel)
+		name := info.Name()
+		isEnc := strings.HasSuffix(name, ".enc")
+		displayName := strings.TrimSuffix(name, ".enc")
+		if strings.HasSuffix(displayName, ".png") {
+			displayName = strings.TrimSuffix(displayName, ".png") + " [截图]"
+		}
+		files = append(files, map[string]interface{}{
+			"path":     rel,
+			"name":     displayName,
+			"date":     dateDir,
+			"size":     info.Size(),
+			"encrypted": isEnc,
+		})
+		return nil
+	})
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i]["date"].(string) > files[j]["date"].(string)
+	})
+
+	enc := json.NewEncoder(w)
+	if len(files) == 0 {
+		enc.Encode([]map[string]interface{}{})
+		return
+	}
+	enc.Encode(files)
+}
+
+func (s *Server) handleEvidenceView(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("path")
+	if rel == "" {
+		http.Error(w, "missing path", http.StatusBadRequest)
+		return
+	}
+
+	fullPath := filepath.Join(s.cfg.Storage.Path, rel)
+
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		http.Error(w, "文件不存在", http.StatusNotFound)
+		return
+	}
+
+	if strings.HasSuffix(fullPath, ".enc") {
+		data, err = crypto.Unprotect(data)
+		if err != nil {
+			http.Error(w, "解密失败", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(data)
 }
 
 
