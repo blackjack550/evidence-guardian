@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"evidence-guardian/internal/config"
+	"evidence-guardian/internal/icon"
 	"evidence-guardian/internal/storage"
 	"evidence-guardian/internal/trigger"
 	"evidence-guardian/ui/server"
@@ -20,6 +21,7 @@ func Run(cfg *config.Config, engine *trigger.Engine, store *storage.Manager, srv
 }
 
 func onReady(cfg *config.Config, engine *trigger.Engine, store *storage.Manager, srv *server.Server) {
+	systray.SetIcon(icon.Generate())
 	systray.SetTitle("证据卫士")
 	systray.SetTooltip("劳动者权益保护取证系统")
 
