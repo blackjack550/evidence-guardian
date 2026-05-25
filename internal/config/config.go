@@ -8,46 +8,46 @@ import (
 )
 
 type Config struct {
-	Keywords        []string       `yaml:"keywords"`
-	Targets         []TargetApp    `yaml:"targets"`
-	OCR             OCRConfig      `yaml:"ocr"`
-	Capture         CaptureConfig  `yaml:"capture"`
-	Storage         StorageConfig  `yaml:"storage"`
-	Hotkey          HotkeyConfig   `yaml:"hotkey"`
-	AutoStart       bool           `yaml:"auto_start"`
-	CaptureMode     string         `yaml:"capture_mode"`     // browser | desktop | full
-	NotifyOnTrigger string         `yaml:"notify_on_trigger"` // silent | toast | alert
+	Keywords        []string       `json:"keywords" yaml:"keywords"`
+	Targets         []TargetApp    `json:"targets" yaml:"targets"`
+	OCR             OCRConfig      `json:"ocr" yaml:"ocr"`
+	Capture         CaptureConfig  `json:"capture" yaml:"capture"`
+	Storage         StorageConfig  `json:"storage" yaml:"storage"`
+	Hotkey          HotkeyConfig   `json:"hotkey" yaml:"hotkey"`
+	AutoStart       bool           `json:"auto_start" yaml:"auto_start"`
+	CaptureMode     string         `json:"capture_mode" yaml:"capture_mode"`
+	NotifyOnTrigger string         `json:"notify_on_trigger" yaml:"notify_on_trigger"`
 }
 
 type TargetApp struct {
-	Name      string `yaml:"name"`
-	Process   string `yaml:"process"`
-	WindowClass string `yaml:"window_class"`
-	Enabled   bool   `yaml:"enabled"`
+	Name        string `json:"name" yaml:"name"`
+	Process     string `json:"process" yaml:"process"`
+	WindowClass string `json:"window_class" yaml:"window_class"`
+	Enabled     bool   `json:"enabled" yaml:"enabled"`
 }
 
 type OCRConfig struct {
-	IntervalSec int  `yaml:"interval_sec"`
-	Enabled     bool `yaml:"enabled"`
+	IntervalSec int  `json:"interval_sec" yaml:"interval_sec"`
+	Enabled     bool `json:"enabled" yaml:"enabled"`
 }
 
 type CaptureConfig struct {
-	VideoDurationSec int  `yaml:"video_duration_sec"`
-	VideoFPS         int  `yaml:"video_fps"`
-	ScreenshotQuality int `yaml:"screenshot_quality"`
+	VideoDurationSec  int `json:"video_duration_sec" yaml:"video_duration_sec"`
+	VideoFPS          int `json:"video_fps" yaml:"video_fps"`
+	ScreenshotQuality int `json:"screenshot_quality" yaml:"screenshot_quality"`
 }
 
 type StorageConfig struct {
-	Path       string `yaml:"path"`
-	MaxSizeGB  int    `yaml:"max_size_gb"`
-	AutoClean  bool   `yaml:"auto_clean"`
-	Encrypt    bool   `yaml:"encrypt"`
+	Path      string `json:"path" yaml:"path"`
+	MaxSizeGB int    `json:"max_size_gb" yaml:"max_size_gb"`
+	AutoClean bool   `json:"auto_clean" yaml:"auto_clean"`
+	Encrypt   bool   `json:"encrypt" yaml:"encrypt"`
 }
 
 type HotkeyConfig struct {
-	Capture   string `yaml:"capture"`
-	Modifiers int    `yaml:"modifiers"`
-	KeyCode   int    `yaml:"key_code"`
+	Capture   string `json:"capture" yaml:"capture"`
+	Modifiers int    `json:"modifiers" yaml:"modifiers"`
+	KeyCode   int    `json:"key_code" yaml:"key_code"`
 }
 
 var DefaultConfig = Config{
