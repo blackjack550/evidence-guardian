@@ -91,11 +91,24 @@ input[type=number] { width: 80px; }
   <div class="row">
     <label>文件加密</label>
     <label style="min-width:auto;font-weight:normal;font-size:14px;color:#333;cursor:pointer;">
-      <input type="checkbox" id="storeEncrypt"> DPAPI 加密保存（仅本机可解密）
+      <input type="checkbox" id="storeEncrypt"> 启用加密
     </label>
   </div>
+  <div id="encryptOptions" style="display:none;">
+    <div class="row">
+      <label>加密方式</label>
+      <select id="encryptMethod">
+        <option value="dpapi">DPAPI（仅本机可解密）</option>
+        <option value="passphrase">口令密码（跨机器可解密）</option>
+      </select>
+    </div>
+    <div class="row" id="passphraseRow" style="display:none;">
+      <label>加密口令</label>
+      <input type="password" id="storePassphrase" style="flex:1;min-width:150px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;" placeholder="设置解密密码">
+    </div>
+  </div>
   <div class="row" style="font-size:12px;color:#e65100;background:#fff3e0;padding:8px 12px;border-radius:4px;margin-top:4px;">
-    ⚠️ 加密后证据文件只能在这台电脑上解密。如需带走备份，建议关闭加密。
+    ⚠️ DPAPI加密仅本机可解密；口令加密可用密码在其他电脑解密。
   </div>
 </div>
 
@@ -163,6 +176,9 @@ function loadConfig() {
     document.getElementById('storePath').value = d.storage?.path || './evidence';
     document.getElementById('storeMaxSize').value = d.storage?.max_size_gb || 50;
     document.getElementById('storeEncrypt').checked = d.storage?.encrypt !== false;
+    document.getElementById('encryptMethod').value = d.storage?.encrypt_method || 'dpapi';
+    document.getElementById('storePassphrase').value = '';
+    toggleEncryptOptions();
 
     // Hotkey
     const mods = d.hotkey?.modifiers || 6;
@@ -188,6 +204,8 @@ function saveConfig() {
         path: document.getElementById('storePath').value,
         max_size_gb: parseInt(document.getElementById('storeMaxSize').value) || 50,
         encrypt: document.getElementById('storeEncrypt').checked,
+        encrypt_method: document.getElementById('storeEncrypt').checked ? document.getElementById('encryptMethod').value : 'dpapi',
+        passphrase: document.getElementById('storeEncrypt').checked && document.getElementById('encryptMethod').value === 'passphrase' ? document.getElementById('storePassphrase').value : '',
       },
       hotkey: { modifiers: mods, key_code: parseInt(document.getElementById('hkKey').value) },
     })
@@ -213,12 +231,19 @@ function manualTrigger() {
 let saveTimer;
 document.getElementById('captureMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.getElementById('notifyMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
-document.getElementById('storeEncrypt').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.getElementById('storeEncrypt').onchange = () => { toggleEncryptOptions(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.getElementById('encryptMethod').onchange = () => { toggleEncryptOptions(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.getElementById('storePassphrase').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.getElementById('hkKey').onchange = () => { updateHotkeyDisplay(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.querySelectorAll('#hkCtrl,#hkAlt,#hkShift,#hkWin').forEach(cb => {
   cb.onchange = () => { updateHotkeyDisplay(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 });
 
+function toggleEncryptOptions() {
+  const enc = document.getElementById('storeEncrypt').checked;
+  document.getElementById('encryptOptions').style.display = enc ? 'block' : 'none';
+  document.getElementById('passphraseRow').style.display = enc && document.getElementById('encryptMethod').value === 'passphrase' ? 'flex' : 'none';
+}
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.style.display = 'block';

@@ -117,6 +117,10 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			s.cfg.Storage.MaxSizeGB = updated.Storage.MaxSizeGB
 		}
 		s.cfg.Storage.Encrypt = updated.Storage.Encrypt
+		s.cfg.Storage.EncryptMethod = updated.Storage.EncryptMethod
+		if updated.Storage.Passphrase != "" {
+			s.cfg.Storage.Passphrase = updated.Storage.Passphrase
+		}
 		if updated.Hotkey.Modifiers != 0 {
 			s.cfg.Hotkey.Modifiers = updated.Hotkey.Modifiers
 		}
@@ -213,7 +217,9 @@ func (s *Server) handleEvidenceView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.HasSuffix(fullPath, ".enc") {
-		data, err = crypto.Unprotect(data)
+		method := crypto.Method(s.cfg.Storage.EncryptMethod)
+		cc := crypto.Config{Method: method, Passphrase: s.cfg.Storage.Passphrase}
+		data, err = crypto.Decrypt(data, cc)
 		if err != nil {
 			http.Error(w, "解密失败", http.StatusInternalServerError)
 			return

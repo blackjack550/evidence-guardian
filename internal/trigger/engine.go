@@ -144,7 +144,7 @@ func (e *Engine) ManualTrigger(source string) {
 	if e.cfg.Storage.Encrypt {
 		encPath := path + ".enc"
 		data, _ := os.ReadFile(path)
-		encData, _ := crypto.Protect(data)
+		encData, _ := e.encryptData(data)
 		os.WriteFile(encPath, encData, 0600)
 		os.Remove(path)
 		path = encPath
@@ -177,7 +177,7 @@ func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo
 		if e.cfg.Storage.Encrypt && path != "" {
 			encPath := path + ".enc"
 			data, _ := os.ReadFile(path)
-			encData, _ := crypto.Protect(data)
+			encData, _ := e.encryptData(data)
 			os.WriteFile(encPath, encData, 0600)
 			os.Remove(path)
 		}
@@ -220,6 +220,22 @@ func (e *Engine) browserLoop(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (e *Engine) encryptData(data []byte) ([]byte, error) {
+	cfg := e.cfg.Storage
+	if cfg.EncryptMethod == "passphrase" && cfg.Passphrase != "" {
+		return crypto.EncryptWithPassphrase(data, cfg.Passphrase)
+	}
+	return crypto.Protect(data)
+}
+
+func (e *Engine) decryptData(data []byte) ([]byte, error) {
+	cfg := e.cfg.Storage
+	if cfg.EncryptMethod == "passphrase" && cfg.Passphrase != "" {
+		return crypto.DecryptWithPassphrase(data, cfg.Passphrase)
+	}
+	return crypto.Unprotect(data)
 }
 
 func (e *Engine) Stop() {
