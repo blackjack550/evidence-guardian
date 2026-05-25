@@ -99,6 +99,12 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		s.cfg.OCR.Enabled = updated.OCR.Enabled
 		s.cfg.OCR.IntervalSec = updated.OCR.IntervalSec
 		s.cfg.Capture.VideoDurationSec = updated.Capture.VideoDurationSec
+		if updated.Hotkey.Modifiers != 0 {
+			s.cfg.Hotkey.Modifiers = updated.Hotkey.Modifiers
+		}
+		if updated.Hotkey.KeyCode != 0 {
+			s.cfg.Hotkey.KeyCode = updated.Hotkey.KeyCode
+		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

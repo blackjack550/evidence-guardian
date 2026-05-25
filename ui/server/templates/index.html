@@ -71,7 +71,40 @@ input[type=number] { width: 80px; }
   <h2>主动取证</h2>
   <div class="row">
     <button class="btn btn-danger" onclick="manualTrigger()">立即取证</button>
-    <span style="font-size:13px;color:#888;">快捷键 Ctrl+Shift+F12</span>
+    <span id="hotkeyDisplay" style="font-size:13px;color:#888;margin-left:10px;"></span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>快捷键设置</h2>
+  <div class="row">
+    <label>组合键</label>
+    <label style="min-width:auto"><input type="checkbox" id="hkCtrl" value="2"> Ctrl</label>
+    <label style="min-width:auto"><input type="checkbox" id="hkAlt" value="1"> Alt</label>
+    <label style="min-width:auto"><input type="checkbox" id="hkShift" value="4"> Shift</label>
+    <label style="min-width:auto"><input type="checkbox" id="hkWin" value="8"> Win</label>
+  </div>
+  <div class="row">
+    <label>按键</label>
+    <select id="hkKey">
+      <option value="112">F1</option><option value="113">F2</option><option value="114">F3</option>
+      <option value="115">F4</option><option value="116">F5</option><option value="117">F6</option>
+      <option value="118">F7</option><option value="119">F8</option><option value="120">F9</option>
+      <option value="121">F10</option><option value="122">F11</option><option value="123" selected>F12</option>
+      <option value="65">A</option><option value="66">B</option><option value="67">C</option>
+      <option value="68">D</option><option value="69">E</option><option value="70">F</option>
+      <option value="71">G</option><option value="72">H</option><option value="73">I</option>
+      <option value="74">J</option><option value="75">K</option><option value="76">L</option>
+      <option value="77">M</option><option value="78">N</option><option value="79">O</option>
+      <option value="80">P</option><option value="81">Q</option><option value="82">R</option>
+      <option value="83">S</option><option value="84">T</option><option value="85">U</option>
+      <option value="86">V</option><option value="87">W</option><option value="88">X</option>
+      <option value="89">Y</option><option value="90">Z</option>
+      <option value="48">0</option><option value="49">1</option><option value="50">2</option>
+      <option value="51">3</option><option value="52">4</option><option value="53">5</option>
+      <option value="54">6</option><option value="55">7</option><option value="56">8</option>
+      <option value="57">9</option>
+    </select>
   </div>
 </div>
 
@@ -87,6 +120,9 @@ function loadStatus() {
   });
 }
 
+const keyNames = {112:'F1',113:'F2',114:'F3',115:'F4',116:'F5',117:'F6',118:'F7',119:'F8',120:'F9',121:'F10',122:'F11',123:'F12',65:'A',66:'B',67:'C',68:'D',69:'E',70:'F',71:'G',72:'H',73:'I',74:'J',75:'K',76:'L',77:'M',78:'N',79:'O',80:'P',81:'Q',82:'R',83:'S',84:'T',85:'U',86:'V',87:'W',88:'X',89:'Y',90:'Z',48:'0',49:'1',50:'2',51:'3',52:'4',53:'5',54:'6',55:'7',56:'8',57:'9'};
+const modNames = {1:'Alt',2:'Ctrl',4:'Shift',8:'Win'};
+
 function loadConfig() {
   fetch('/api/config').then(r=>r.json()).then(d=>{
     const kwDiv = document.getElementById('keywordList');
@@ -99,20 +135,40 @@ function loadConfig() {
 
     document.getElementById('captureMode').value = d.capture_mode || 'browser';
     document.getElementById('notifyMode').value = d.notify_on_trigger || 'silent';
+
+    // Hotkey
+    const mods = d.hotkey?.modifiers || 6;
+    document.querySelectorAll('#hkCtrl,#hkAlt,#hkShift,#hkWin').forEach(cb => {
+      cb.checked = !!(mods & parseInt(cb.value));
+    });
+    document.getElementById('hkKey').value = d.hotkey?.key_code || 123;
+    updateHotkeyDisplay();
   });
 }
 
 function saveConfig() {
+  let mods = 0;
+  document.querySelectorAll('#hkCtrl,#hkAlt,#hkShift,#hkWin').forEach(cb => { if(cb.checked) mods |= parseInt(cb.value); });
+
   fetch('/api/config', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       capture_mode: document.getElementById('captureMode').value,
       notify_on_trigger: document.getElementById('notifyMode').value,
+      hotkey: { modifiers: mods, key_code: parseInt(document.getElementById('hkKey').value) },
     })
   }).then(r=>r.json()).then(d=>{
-    showToast('配置已保存');
+    showToast('配置已保存，重启后生效');
   });
+}
+
+function updateHotkeyDisplay() {
+  let parts = [];
+  document.querySelectorAll('#hkCtrl,#hkAlt,#hkShift,#hkWin').forEach(cb => { if(cb.checked) parts.push(modNames[cb.value]); });
+  const kc = parseInt(document.getElementById('hkKey').value);
+  parts.push(keyNames[kc] || 'F12');
+  document.getElementById('hotkeyDisplay').textContent = '快捷键 ' + parts.join('+');
 }
 
 function manualTrigger() {
@@ -124,6 +180,10 @@ function manualTrigger() {
 let saveTimer;
 document.getElementById('captureMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.getElementById('notifyMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.getElementById('hkKey').onchange = () => { updateHotkeyDisplay(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.querySelectorAll('#hkCtrl,#hkAlt,#hkShift,#hkWin').forEach(cb => {
+  cb.onchange = () => { updateHotkeyDisplay(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+});
 
 function showToast(msg) {
   const t = document.getElementById('toast');
