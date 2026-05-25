@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net"
 	"net/http"
 
@@ -62,8 +61,6 @@ func (s *Server) Start(ctx context.Context) error {
 	} else {
 		s.port = 58080
 	}
-
-	log.Printf("管理面板: http://127.0.0.1:%d\n", s.port)
 
 	go s.server.Serve(listener)
 	return nil

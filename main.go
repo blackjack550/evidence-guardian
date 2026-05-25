@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"evidence-guardian/internal/config"
@@ -15,18 +17,27 @@ import (
 )
 
 func main() {
-	fmt.Println("证据卫士 v0.1.0 — 劳动者权益保护取证系统")
+	logFile, err := os.OpenFile(
+		filepath.Join(filepath.Dir(os.Args[0]), "evidence-guardian.log"),
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644,
+	)
+	if err == nil {
+		log.SetOutput(io.MultiWriter(logFile, os.Stderr))
+		defer logFile.Close()
+	} else {
+		log.SetOutput(os.Stderr)
+	}
+
+	log.Println("证据卫士 v0.1.0 — 劳动者权益保护取证系统")
 
 	cfg, err := config.Load("config.yaml")
 	if err != nil {
-		fmt.Printf("加载配置失败: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("加载配置失败: %v", err)
 	}
 
 	store, err := storage.New(cfg.Storage)
 	if err != nil {
-		fmt.Printf("初始化存储失败: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("初始化存储失败: %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -36,7 +47,7 @@ func main() {
 
 	webServer := server.New(cfg, engine)
 	if err := webServer.Start(ctx); err != nil {
-		fmt.Printf("启动管理面板失败: %v\n", err)
+		log.Printf("启动管理面板失败: %v", err)
 	}
 
 	engine.SetNotifyHandler(func(title, message string) {
@@ -44,6 +55,10 @@ func main() {
 	})
 
 	engine.Start(ctx)
+
+	if webServer.Port() > 0 {
+		log.Printf("管理面板: http://127.0.0.1:%d", webServer.Port())
+	}
 
 	tray.Run(cfg, engine, store, webServer)
 
