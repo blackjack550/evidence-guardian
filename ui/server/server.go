@@ -99,6 +99,12 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		s.cfg.OCR.Enabled = updated.OCR.Enabled
 		s.cfg.OCR.IntervalSec = updated.OCR.IntervalSec
 		s.cfg.Capture.VideoDurationSec = updated.Capture.VideoDurationSec
+		if updated.Storage.Path != "" {
+			s.cfg.Storage.Path = updated.Storage.Path
+		}
+		if updated.Storage.MaxSizeGB > 0 {
+			s.cfg.Storage.MaxSizeGB = updated.Storage.MaxSizeGB
+		}
 		if updated.Hotkey.Modifiers != 0 {
 			s.cfg.Hotkey.Modifiers = updated.Hotkey.Modifiers
 		}

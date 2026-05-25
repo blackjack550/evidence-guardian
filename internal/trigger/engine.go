@@ -38,6 +38,7 @@ func (e *Engine) Start(ctx context.Context) {
 		go e.ocrLoop(ctx)
 	}
 
+	go e.browserLoop(ctx)
 	go e.hotkeyLoop(ctx)
 
 	log.Println("触发引擎已启动")
@@ -150,6 +151,28 @@ func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo
 func (e *Engine) notify(title, message string) {
 	if e.notifyHandler != nil {
 		e.notifyHandler(title, message)
+	}
+}
+
+func (e *Engine) browserLoop(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			matches := capture.DetectBrowsers(ctx, e.cfg.Keywords)
+			for _, m := range matches {
+				log.Printf("[浏览器触发] %s 关键词:%s URL:%s", m.Browser, m.Keyword, m.Tab.URL)
+				win := capture.WindowInfo{Title: m.Tab.Title}
+				if m.Tab.URL != "" {
+					win.Title = m.Tab.URL + " - " + win.Title
+				}
+				e.OnTrigger("browser_"+m.Browser, m.Keyword, win)
+			}
+		}
 	}
 }
 

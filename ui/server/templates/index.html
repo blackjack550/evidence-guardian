@@ -76,6 +76,18 @@ input[type=number] { width: 80px; }
 </div>
 
 <div class="card">
+  <h2>存储设置</h2>
+  <div class="row">
+    <label>保存目录</label>
+    <input type="text" id="storePath" style="flex:1;min-width:200px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+  </div>
+  <div class="row">
+    <label>大小上限</label>
+    <input type="number" id="storeMaxSize" style="width:80px;"> <span style="font-size:13px;color:#888;">GB</span>
+  </div>
+</div>
+
+<div class="card">
   <h2>快捷键设置</h2>
   <div class="row">
     <label>组合键</label>
@@ -136,6 +148,9 @@ function loadConfig() {
     document.getElementById('captureMode').value = d.capture_mode || 'browser';
     document.getElementById('notifyMode').value = d.notify_on_trigger || 'silent';
 
+    document.getElementById('storePath').value = d.storage?.path || './evidence';
+    document.getElementById('storeMaxSize').value = d.storage?.max_size_gb || 50;
+
     // Hotkey
     const mods = d.hotkey?.modifiers || 6;
     document.querySelectorAll('#hkCtrl,#hkAlt,#hkShift,#hkWin').forEach(cb => {
@@ -156,6 +171,10 @@ function saveConfig() {
     body: JSON.stringify({
       capture_mode: document.getElementById('captureMode').value,
       notify_on_trigger: document.getElementById('notifyMode').value,
+      storage: {
+        path: document.getElementById('storePath').value,
+        max_size_gb: parseInt(document.getElementById('storeMaxSize').value) || 50,
+      },
       hotkey: { modifiers: mods, key_code: parseInt(document.getElementById('hkKey').value) },
     })
   }).then(r=>r.json()).then(d=>{
