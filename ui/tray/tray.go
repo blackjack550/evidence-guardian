@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"syscall"
 
 	"evidence-guardian/internal/config"
 	"evidence-guardian/internal/icon"
@@ -53,7 +54,7 @@ func onExit() {
 }
 
 func ShowNotify(title, message string) {
-	exec.Command("powershell",
+	cmd := exec.Command("powershell",
 		"-NoProfile", "-Command",
 		fmt.Sprintf(`
 			[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
@@ -64,7 +65,9 @@ func ShowNotify(title, message string) {
 			$toast = [Windows.UI.Notifications.ToastNotification]::new($template)
 			[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier().Show($toast)
 		`, title, message),
-	).Start()
+	)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.Start()
 }
 
 func toggleAutoStart(item *systray.MenuItem) {
@@ -76,5 +79,7 @@ func toggleAutoStart(item *systray.MenuItem) {
 }
 
 func openBrowser(url string) {
-	exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	cmd := exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.Start()
 }
