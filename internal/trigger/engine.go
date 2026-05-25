@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	"evidence-guardian/internal/capture"
 	"evidence-guardian/internal/config"
+	"evidence-guardian/internal/crypto"
 	"evidence-guardian/internal/storage"
 )
 
@@ -124,6 +127,31 @@ func (e *Engine) hotkeyLoop(ctx context.Context) {
 func (e *Engine) ManualTrigger(source string) {
 	log.Printf("[手动取证] 来源:%s\n", source)
 	e.notify("证据卫士", "正在采集当前屏幕证据…")
+
+	shotDir := filepath.Join(e.cfg.Storage.Path, time.Now().Format("2006-01-02"))
+	img, err := capture.CaptureDesktop()
+	if err != nil {
+		log.Printf("截图失败: %v\n", err)
+		return
+	}
+
+	path, err := capture.SavePNG(img, shotDir, fmt.Sprintf("manual_%s", time.Now().Format("150405")))
+	if err != nil {
+		log.Printf("保存截图失败: %v\n", err)
+		return
+	}
+
+	if e.cfg.Storage.Encrypt {
+		encPath := path + ".enc"
+		data, _ := os.ReadFile(path)
+		encData, _ := crypto.Protect(data)
+		os.WriteFile(encPath, encData, 0600)
+		os.Remove(path)
+		path = encPath
+	}
+
+	e.notify("证据卫士", fmt.Sprintf("截图已保存: %s", path))
+	log.Printf("[取证] 截图已保存: %s\n", path)
 }
 
 func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo) {
@@ -137,6 +165,20 @@ func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo
 	}
 
 	e.store.SaveRecord(record)
+
+	shotDir := filepath.Join(e.cfg.Storage.Path, time.Now().Format("2006-01-02"))
+	img, err := capture.CaptureDesktop()
+	if err == nil {
+		path, _ := capture.SavePNG(img, shotDir, fmt.Sprintf("%s_%s", source, keyword))
+		if e.cfg.Storage.Encrypt && path != "" {
+			encPath := path + ".enc"
+			data, _ := os.ReadFile(path)
+			encData, _ := crypto.Protect(data)
+			os.WriteFile(encPath, encData, 0600)
+			os.Remove(path)
+		}
+	}
+
 	log.Printf("[取证] %s → %s\n", source, keyword)
 
 	switch e.cfg.NotifyOnTrigger {

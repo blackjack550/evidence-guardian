@@ -5,26 +5,58 @@ import (
 	"image"
 	"image/png"
 	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/kbinani/screenshot"
 )
 
 type ScreenshotResult struct {
-	Path      string
-	Width     int
-	Height    int
+	Path   string
+	Width  int
+	Height int
 	WindowInfo
 }
 
-type Screenshotter interface {
-	Capture(hwnd uintptr, rect RECT) (*image.RGBA, error)
-	CaptureFullScreen() (*image.RGBA, error)
+func CaptureDesktop() (*image.RGBA, error) {
+	n := screenshot.NumActiveDisplays()
+	if n == 0 {
+		return nil, fmt.Errorf("没有检测到显示器")
+	}
+
+	bounds := screenshot.GetDisplayBounds(0)
+	for i := 1; i < n; i++ {
+		b := screenshot.GetDisplayBounds(i)
+		bounds = bounds.Union(b)
+	}
+
+	img, err := screenshot.CaptureRect(bounds)
+	if err != nil {
+		return nil, fmt.Errorf("截图失败: %w", err)
+	}
+	return img, nil
 }
 
-func SaveScreenshot(img *image.RGBA, path string) error {
+func CaptureWindow(hwnd uintptr, rect RECT) (*image.RGBA, error) {
+	img, err := screenshot.CaptureRect(image.Rect(
+		int(rect.Left), int(rect.Top),
+		int(rect.Right), int(rect.Bottom),
+	))
+	if err != nil {
+		return nil, fmt.Errorf("窗口截图失败: %w", err)
+	}
+	return img, nil
+}
+
+func SavePNG(img *image.RGBA, dir, name string) (string, error) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("创建目录失败: %w", err)
+	}
+	path := filepath.Join(dir, fmt.Sprintf("%s_%d.png", name, time.Now().UnixMilli()))
 	f, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("创建截图文件失败: %w", err)
+		return "", err
 	}
 	defer f.Close()
-
-	return png.Encode(f, img)
+	return path, png.Encode(f, img)
 }
