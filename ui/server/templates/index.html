@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>证据卫士 · 管理面板</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+.container { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 22px; margin-bottom: 20px; color: #1a1a2e; }
+h2 { font-size: 16px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #ddd; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.row { display: flex; align-items: center; margin: 10px 0; gap: 10px; flex-wrap: wrap; }
+label { min-width: 120px; font-size: 14px; color: #555; }
+select, input[type=number] { padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+select { min-width: 140px; }
+input[type=number] { width: 80px; }
+.tag { display: inline-block; background: #e3f2fd; color: #1565c0; padding: 4px 10px; border-radius: 12px; font-size: 13px; margin: 3px; }
+.btn { padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+.btn-primary { background: #1a73e8; color: #fff; }
+.btn-primary:hover { background: #1557b0; }
+.btn-success { background: #34a853; color: #fff; }
+.btn-success:hover { background: #2d9249; }
+.btn-danger { background: #ea4335; color: #fff; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.green { background: #34a853; }
+.status-dot.gray { background: #aaa; }
+#toast { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 24px; border-radius: 6px; font-size: 14px; z-index: 999; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🛡️ 证据卫士 · 管理面板</h1>
+
+<div class="card" id="statusBar">
+  <div class="row"><label>运行状态</label><span id="statusText"><span class="status-dot green"></span>运行中</span></div>
+</div>
+
+<div class="card">
+  <h2>采集模式</h2>
+  <div class="row">
+    <label>采集范围</label>
+    <select id="captureMode">
+      <option value="browser">仅浏览器</option>
+      <option value="desktop">桌面 + 浏览器</option>
+      <option value="full">全面采集（含逐窗口截取）</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>触发通知</label>
+    <select id="notifyMode">
+      <option value="silent">静默采集（无提示）</option>
+      <option value="toast">系统通知提示</option>
+      <option value="alert">弹窗提醒</option>
+    </select>
+  </div>
+</div>
+
+<div class="card">
+  <h2>关键词列表</h2>
+  <div id="keywordList"></div>
+</div>
+
+<div class="card">
+  <h2>目标应用</h2>
+  <div id="targetList"></div>
+</div>
+
+<div class="card">
+  <h2>主动取证</h2>
+  <div class="row">
+    <button class="btn btn-danger" onclick="manualTrigger()">立即取证</button>
+    <span style="font-size:13px;color:#888;">快捷键 Ctrl+Shift+F12</span>
+  </div>
+</div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+function loadStatus() {
+  fetch('/api/status').then(r=>r.json()).then(d=>{
+    document.getElementById('captureMode').value = d.capture_mode || 'browser';
+    document.getElementById('notifyMode').value = d.notify_mode || 'silent';
+  });
+}
+
+function loadConfig() {
+  fetch('/api/config').then(r=>r.json()).then(d=>{
+    const kwDiv = document.getElementById('keywordList');
+    kwDiv.innerHTML = (d.keywords||[]).map(k=>`<span class="tag">${k}</span>`).join('');
+
+    const tDiv = document.getElementById('targetList');
+    tDiv.innerHTML = (d.targets||[]).map(t=>
+      `<span class="tag" style="background:#e8f5e9;color:#2e7d32;">${t.enabled?'✅':'⬜'} ${t.name}</span>`
+    ).join('');
+
+    document.getElementById('captureMode').value = d.capture_mode || 'browser';
+    document.getElementById('notifyMode').value = d.notify_on_trigger || 'silent';
+  });
+}
+
+function saveConfig() {
+  fetch('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      capture_mode: document.getElementById('captureMode').value,
+      notify_on_trigger: document.getElementById('notifyMode').value,
+    })
+  }).then(r=>r.json()).then(d=>{
+    showToast('配置已保存');
+  });
+}
+
+function manualTrigger() {
+  fetch('/api/trigger', {method:'POST'}).then(r=>r.json()).then(d=>{
+    showToast('✅ 证据采集已触发');
+  });
+}
+
+let saveTimer;
+document.getElementById('captureMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.getElementById('notifyMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(()=>{ t.style.display = 'none'; }, 2000);
+}
+
+loadStatus(); loadConfig();
+setInterval(loadStatus, 5000);
+</script>
+</body>
+</html>

@@ -2,20 +2,25 @@ package trigger
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
 	"evidence-guardian/internal/capture"
 	"evidence-guardian/internal/config"
-	"evidence-guardian/internal/ocr"
 	"evidence-guardian/internal/storage"
 )
 
 type Engine struct {
-	cfg      *config.Config
-	store    *storage.Manager
-	titleMon *TitleMonitor
-	hotkey   *HotkeyManager
+	cfg           *config.Config
+	store         *storage.Manager
+	titleMon      *TitleMonitor
+	hotkey        *HotkeyManager
+	notifyHandler func(title, message string)
+}
+
+func (e *Engine) SetNotifyHandler(h func(title, message string)) {
+	e.notifyHandler = h
 }
 
 func NewEngine(cfg *config.Config, store *storage.Manager) *Engine {
@@ -107,14 +112,17 @@ func (e *Engine) hotkeyLoop(ctx context.Context) {
 	e.hotkey = hm
 
 	hm.Register(e.cfg.Hotkey.Modifiers, e.cfg.Hotkey.KeyCode, func() {
-		log.Println("[用户手动触发] 热键取证")
-		cfg := e.cfg
-		_ = cfg
+		e.ManualTrigger("hotkey")
 	})
 
 	go hm.Start()
 	<-ctx.Done()
 	hm.Stop()
+}
+
+func (e *Engine) ManualTrigger(source string) {
+	log.Printf("[手动取证] 来源:%s\n", source)
+	e.notify("证据卫士", "正在采集当前屏幕证据…")
 }
 
 func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo) {
@@ -128,7 +136,21 @@ func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo
 	}
 
 	e.store.SaveRecord(record)
-	log.Printf("[取证] %s 触发证据已保存\n", keyword)
+	log.Printf("[取证] %s → %s\n", source, keyword)
+
+	switch e.cfg.NotifyOnTrigger {
+	case "toast":
+		e.notify("证据卫士", fmt.Sprintf("检测到关键词「%s」，证据已采集", keyword))
+	case "alert":
+		e.notify("⚠️ 证据采集提醒",
+			fmt.Sprintf("屏幕出现敏感关键词「%s」\n系统已自动采集证据，请勿操作异常关闭", keyword))
+	}
+}
+
+func (e *Engine) notify(title, message string) {
+	if e.notifyHandler != nil {
+		e.notifyHandler(title, message)
+	}
 }
 
 func (e *Engine) Stop() {

@@ -62,3 +62,5 @@ hotkey:
   key_code: 123
 
 auto_start: false
+capture_mode: browser       # browser | desktop | full
+notify_on_trigger: silent   # silent | toast | alert

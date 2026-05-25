@@ -6,6 +6,8 @@ import (
 	"unsafe"
 )
 
+var procLocalFree = syscall.NewLazyDLL("kernel32.dll").NewProc("LocalFree")
+
 type _DATA_BLOB struct {
 	cbData uint32
 	pbData *byte
@@ -41,7 +43,7 @@ func Protect(plaintext []byte) ([]byte, error) {
 	if ret == 0 {
 		return nil, fmt.Errorf("CryptProtectData 失败: %w", err)
 	}
-	defer syscall.LocalFree(out.pbData)
+	defer procLocalFree.Call(uintptr(unsafe.Pointer(out.pbData)))
 
 	result := make([]byte, out.cbData)
 	copy(result, unsafe.Slice(out.pbData, out.cbData))
@@ -68,7 +70,7 @@ func Unprotect(ciphertext []byte) ([]byte, error) {
 	if ret == 0 {
 		return nil, fmt.Errorf("CryptUnprotectData 失败: %w", err)
 	}
-	defer syscall.LocalFree(out.pbData)
+	defer procLocalFree.Call(uintptr(unsafe.Pointer(out.pbData)))
 
 	result := make([]byte, out.cbData)
 	copy(result, unsafe.Slice(out.pbData, out.cbData))

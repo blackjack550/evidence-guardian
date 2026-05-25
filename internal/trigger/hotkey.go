@@ -9,6 +9,7 @@ import (
 
 var (
 	user32                = syscall.NewLazyDLL("user32.dll")
+	kernel32              = syscall.NewLazyDLL("kernel32.dll")
 	procRegisterHotKey    = user32.NewProc("RegisterHotKey")
 	procUnregisterHotKey  = user32.NewProc("UnregisterHotKey")
 	procCreateWindowExW   = user32.NewProc("CreateWindowExW")
@@ -16,6 +17,7 @@ var (
 	procGetMessageW       = user32.NewProc("GetMessageW")
 	procDestroyWindow     = user32.NewProc("DestroyWindow")
 	procPostQuitMessage   = user32.NewProc("PostQuitMessage")
+	procGetModuleHandleW  = kernel32.NewProc("GetModuleHandleW")
 )
 
 const (
@@ -40,11 +42,10 @@ type HotkeyManager struct {
 func NewHotkeyManager() (*HotkeyManager, error) {
 	runtime.LockOSThread()
 
-	className := "EvidenceGuardian_Hotkey\000"
-	hinstance, _ := syscall.GetModuleHandle(nil)
+	hinstance, _, _ := procGetModuleHandleW.Call(0)
 
 	hwnd, _, _ := procCreateWindowExW.Call(
-		0, uintptr(unsafe.Pointer(&className[0])),
+		0, uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("EvidenceGuardian_Hotkey"))),
 		0, 0, 0, 0, 0, 0,
 		0, 0, hinstance, 0,
 	)

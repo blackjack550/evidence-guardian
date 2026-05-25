@@ -8,13 +8,15 @@ import (
 )
 
 type Config struct {
-	Keywords  []string       `yaml:"keywords"`
-	Targets   []TargetApp    `yaml:"targets"`
-	OCR       OCRConfig      `yaml:"ocr"`
-	Capture   CaptureConfig  `yaml:"capture"`
-	Storage   StorageConfig  `yaml:"storage"`
-	Hotkey    HotkeyConfig   `yaml:"hotkey"`
-	AutoStart bool           `yaml:"auto_start"`
+	Keywords        []string       `yaml:"keywords"`
+	Targets         []TargetApp    `yaml:"targets"`
+	OCR             OCRConfig      `yaml:"ocr"`
+	Capture         CaptureConfig  `yaml:"capture"`
+	Storage         StorageConfig  `yaml:"storage"`
+	Hotkey          HotkeyConfig   `yaml:"hotkey"`
+	AutoStart       bool           `yaml:"auto_start"`
+	CaptureMode     string         `yaml:"capture_mode"`     // browser | desktop | full
+	NotifyOnTrigger string         `yaml:"notify_on_trigger"` // silent | toast | alert
 }
 
 type TargetApp struct {
@@ -64,7 +66,9 @@ var DefaultConfig = Config{
 	Capture: CaptureConfig{VideoDurationSec: 8, VideoFPS: 10, ScreenshotQuality: 90},
 	Storage: StorageConfig{Path: "./evidence", MaxSizeGB: 50, AutoClean: true, Encrypt: true},
 	Hotkey:  HotkeyConfig{Modifiers: 6, KeyCode: 0x7B}, // Ctrl+Shift+F12
-	AutoStart: false,
+	AutoStart:       false,
+	CaptureMode:     "browser",                          // browser | desktop | full
+	NotifyOnTrigger: "silent",                           // silent | toast | alert
 }
 
 func Load(path string) (*Config, error) {
