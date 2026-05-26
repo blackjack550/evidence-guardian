@@ -1,6 +1,7 @@
 package server
 
 import (
+	"archive/zip"
 	"context"
 	"embed"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"evidence-guardian/internal/config"
 	"evidence-guardian/internal/crypto"
@@ -54,6 +56,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/evidence", s.handleEvidenceList)
 	mux.HandleFunc("/api/evidence/view", s.handleEvidenceView)
 	mux.HandleFunc("/api/evidence/export", s.handleEvidenceExport)
+	mux.HandleFunc("/api/evidence/export-all", s.handleEvidenceExportAll)
 
 	s.server = &http.Server{
 		Handler: mux,
@@ -270,6 +273,49 @@ func (s *Server) handleEvidenceExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, dlName))
 	w.Write(data)
+}
+
+func (s *Server) handleEvidenceExportAll(w http.ResponseWriter, r *http.Request) {
+	root := s.cfg.Storage.Path
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="evidence_export_%s.zip"`, time.Now().Format("20060102_150405")))
+
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	cc := crypto.Config{
+		Method:     crypto.Method(s.cfg.Storage.EncryptMethod),
+		Passphrase: s.cfg.Storage.Passphrase,
+	}
+
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+
+		rel, _ := filepath.Rel(root, path)
+		rel = strings.ReplaceAll(rel, "\\", "/")
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+
+		isEnc := strings.HasSuffix(path, ".enc")
+		if isEnc {
+			data, err = crypto.Decrypt(data, cc)
+			if err != nil {
+				return nil
+			}
+			rel = strings.TrimSuffix(rel, ".enc")
+		}
+
+		f, _ := zw.Create(rel)
+		if f != nil {
+			f.Write(data)
+		}
+		return nil
+	})
 }
 
 
