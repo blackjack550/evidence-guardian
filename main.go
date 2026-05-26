@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"evidence-guardian/internal/config"
 	"evidence-guardian/internal/crypto"
@@ -18,6 +19,7 @@ import (
 	"evidence-guardian/internal/storage"
 	"evidence-guardian/internal/trigger"
 	"evidence-guardian/ui/server"
+	"github.com/kbinani/screenshot"
 	"evidence-guardian/ui/tray"
 )
 
@@ -25,7 +27,13 @@ func main() {
 	decryptCmd := flag.String("decrypt", "", "解密证据文件: -decrypt=口令 -dir=证据目录")
 	decryptDir := flag.String("dir", "./evidence", "待解密的证据目录")
 	ocrTest := flag.Bool("ocr-test", false, "测试OCR识别率: 截图并显示识别结果")
+	ocrBench := flag.Bool("ocr-bench", false, "OCR CPU开销基准测试: 连续截图+OCR并统计CPU/耗时")
 	flag.Parse()
+
+	if *ocrBench {
+		runOCRBenchmark()
+		return
+	}
 
 	if *ocrTest {
 		runOCRTest()
@@ -165,4 +173,94 @@ func runOCRTest() {
 	fmt.Println(text)
 	fmt.Println(strings.Repeat("-", 50))
 	fmt.Printf("\n共识别 %d 个字\n", len([]rune(text)))
+}
+
+func runOCRBenchmark() {
+	fmt.Println("证据卫士 — OCR CPU 开销基准测试")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println()
+	fmt.Println("测试场景: 全屏截图 → Tesseract OCR 识别")
+	fmt.Println("模拟频率: 每 10 秒一次")
+	fmt.Println()
+
+	engine := ocr.New()
+	if !engine.IsReady() {
+		fmt.Println("❌ Tesseract 未安装，请先安装: https://github.com/UB-Mannheim/tesseract/wiki")
+		fmt.Println("   安装时勾选中文简体 (chi_sim)")
+		return
+	}
+	defer engine.Close()
+
+	const rounds = 5
+	var totalOCR time.Duration
+	var totalScreenshot time.Duration
+	var totalChars int
+
+	for i := 1; i <= rounds; i++ {
+		fmt.Printf("[%d/%d] 截图中...\n", i, rounds)
+
+		t0 := time.Now()
+		n := screenshot.NumActiveDisplays()
+		if n == 0 { continue }
+		bounds := screenshot.GetDisplayBounds(0)
+		for di := 1; di < n; di++ {
+			b := screenshot.GetDisplayBounds(di)
+			bounds = bounds.Union(b)
+		}
+		img, err := screenshot.CaptureRect(bounds)
+		t1 := time.Now()
+		if err != nil {
+			fmt.Printf("  截图失败: %v\n", err)
+			continue
+		}
+		totalScreenshot += t1.Sub(t0)
+
+		text, err := engine.Recognize(img)
+		t2 := time.Now()
+		if err != nil {
+			fmt.Printf("  OCR失败: %v\n", err)
+			continue
+		}
+
+		ocrDur := t2.Sub(t1)
+		totalOCR += ocrDur
+		chars := len([]rune(text))
+		totalChars += chars
+
+		fmt.Printf("  截图:%v  OCR:%v  识别%d字  CPU等效:%.1f%%\n",
+			t1.Sub(t0).Round(time.Millisecond),
+			ocrDur.Round(time.Millisecond),
+			chars,
+			float64(ocrDur.Milliseconds())/10000*100)
+	}
+
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println("📊 测试结果汇总")
+	fmt.Println(strings.Repeat("-", 60))
+
+	avgOCR := totalOCR / rounds
+	avgSS := totalScreenshot / rounds
+
+	fmt.Printf("平均截图耗时:     %v\n", avgSS.Round(time.Millisecond))
+	fmt.Printf("平均OCR耗时:      %v\n", avgOCR.Round(time.Millisecond))
+	fmt.Printf("平均识别字数:     %d 字\n", totalChars/rounds)
+	fmt.Println()
+
+	usage := float64(avgOCR.Milliseconds()) / 10000 * 100
+	peakUsage := 0.0
+	for i := 1; i <= rounds; i++ {
+		_ = i
+	}
+	_ = peakUsage
+
+	fmt.Println("🔍 10秒间隔CPU开销评估:")
+	if usage < 5 {
+		fmt.Printf("  ✅ CPU开销 %.1f%%，极低，10秒间隔完全可行\n", usage)
+	} else if usage < 15 {
+		fmt.Printf("  ⚠️ CPU开销 %.1f%%，中等，10秒间隔可行\n", usage)
+	} else if usage < 30 {
+		fmt.Printf("  ⚠️ CPU开销 %.1f%%，较高，建议间隔延长至30秒\n", usage)
+	} else {
+		fmt.Printf("  ❌ CPU开销 %.1f%%，过高，建议仅手动触发\n", usage)
+	}
 }

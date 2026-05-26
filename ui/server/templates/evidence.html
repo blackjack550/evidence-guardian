@@ -55,7 +55,8 @@ function loadEvidence() {
             <div class="file-meta">${(f.size/1024).toFixed(1)} KB ${f.encrypted ? '· 已加密' : ''}</div>
           </div>
           <span class="file-date">${f.date}</span>
-          <a class="btn-view" href="javascript:void(0)" onclick="viewEvidence('${f.path}')">查看</a>
+          <a class="btn-view" href="javascript:void(0)" onclick="viewEvidence('${f.path}')" style="margin-right:4px;">查看</a>
+          <a class="btn-view" href="/api/evidence/export?path=${encodeURIComponent(f.path)}" style="background:#fff3e0;border-color:#e65100;color:#e65100;" download>导出</a>
         </div>
       </div>
     `).join('');

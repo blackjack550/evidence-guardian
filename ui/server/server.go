@@ -53,6 +53,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/evidence", s.handleEvidenceList)
 	mux.HandleFunc("/api/evidence/view", s.handleEvidenceView)
+	mux.HandleFunc("/api/evidence/export", s.handleEvidenceExport)
 
 	s.server = &http.Server{
 		Handler: mux,
@@ -227,6 +228,47 @@ func (s *Server) handleEvidenceView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "image/png")
+	w.Write(data)
+}
+
+func (s *Server) handleEvidenceExport(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("path")
+	if rel == "" {
+		http.Error(w, "missing path", http.StatusBadRequest)
+		return
+	}
+	rel = strings.ReplaceAll(rel, "/", "\\")
+	fullPath := filepath.Join(s.cfg.Storage.Path, rel)
+
+	absRoot, _ := filepath.Abs(s.cfg.Storage.Path)
+	absPath, _ := filepath.Abs(fullPath)
+	if !strings.HasPrefix(absPath, absRoot) {
+		http.Error(w, "invalid path", http.StatusForbidden)
+		return
+	}
+
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		http.Error(w, "文件不存在", http.StatusNotFound)
+		return
+	}
+
+	isEnc := strings.HasSuffix(fullPath, ".enc")
+	if isEnc {
+		method := crypto.Method(s.cfg.Storage.EncryptMethod)
+		cc := crypto.Config{Method: method, Passphrase: s.cfg.Storage.Passphrase}
+		data, err = crypto.Decrypt(data, cc)
+		if err != nil {
+			http.Error(w, "解密失败", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Return decrypted file as download
+	fileName := filepath.Base(rel)
+	dlName := strings.TrimSuffix(fileName, ".enc")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, dlName))
 	w.Write(data)
 }
 

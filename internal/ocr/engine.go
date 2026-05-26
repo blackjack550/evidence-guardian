@@ -91,6 +91,7 @@ func (e *Engine) Recognize(img *image.RGBA) (string, error) {
 	cmd := exec.Command(e.tesseractPath, imgPath, outPath,
 		"-l", "chi_sim+eng", "--psm", "3")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.Env = append(os.Environ(), "TESSDATA_PREFIX="+os.Getenv("TESSDATA_PREFIX"))
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("Tesseract 识别失败: %w", err)
 	}
