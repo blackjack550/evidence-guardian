@@ -14,6 +14,7 @@ import (
 
 	"evidence-guardian/internal/config"
 	"evidence-guardian/internal/crypto"
+	"evidence-guardian/internal/ocr"
 	"evidence-guardian/internal/storage"
 	"evidence-guardian/internal/trigger"
 	"evidence-guardian/ui/server"
@@ -23,7 +24,13 @@ import (
 func main() {
 	decryptCmd := flag.String("decrypt", "", "解密证据文件: -decrypt=口令 -dir=证据目录")
 	decryptDir := flag.String("dir", "./evidence", "待解密的证据目录")
+	ocrTest := flag.Bool("ocr-test", false, "测试OCR识别率: 截图并显示识别结果")
 	flag.Parse()
+
+	if *ocrTest {
+		runOCRTest()
+		return
+	}
 
 	if *decryptCmd != "" {
 		runDecrypt(*decryptCmd, *decryptDir)
@@ -133,4 +140,29 @@ func runDecrypt(passphrase, dir string) {
 	if success > 0 {
 		fmt.Printf("明文文件已保存在原目录，文件名已去除 .enc 后缀\n")
 	}
+}
+
+func runOCRTest() {
+	fmt.Println("证据卫士 — OCR 识别率测试")
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Println("正在截取全屏并运行 OCR...\n")
+
+	engine := ocr.New()
+	if !engine.IsReady() {
+		fmt.Println("❌ OCR 引擎不可用")
+		return
+	}
+	defer engine.Close()
+
+	text, err := engine.RecognizeDesktop()
+	if err != nil {
+		fmt.Printf("❌ OCR 识别失败: %v\n", err)
+		return
+	}
+
+	fmt.Println("📄 识别结果:")
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println(text)
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Printf("\n共识别 %d 个字\n", len([]rune(text)))
 }

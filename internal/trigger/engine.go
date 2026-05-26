@@ -11,6 +11,7 @@ import (
 	"evidence-guardian/internal/capture"
 	"evidence-guardian/internal/config"
 	"evidence-guardian/internal/crypto"
+	"evidence-guardian/internal/ocr"
 	"evidence-guardian/internal/storage"
 )
 
@@ -19,6 +20,7 @@ type Engine struct {
 	store         *storage.Manager
 	titleMon      *TitleMonitor
 	hotkey        *HotkeyManager
+	ocrEngine     *ocr.Engine
 	notifyHandler func(title, message string)
 }
 
@@ -35,8 +37,17 @@ func NewEngine(cfg *config.Config, store *storage.Manager) *Engine {
 }
 
 func (e *Engine) Start(ctx context.Context) {
+	if e.cfg.CaptureMode != "browser" || e.cfg.OCR.Enabled {
+		e.ocrEngine = ocr.New()
+	}
+
 	go e.titleLoop(ctx)
 	go e.browserLoop(ctx)
+
+	if e.ocrEngine != nil && e.ocrEngine.IsReady() {
+		go e.ocrLoop(ctx)
+	}
+
 	go e.hotkeyLoop(ctx)
 	log.Printf("触发引擎已启动 (模式:%s)", e.cfg.CaptureMode)
 }
@@ -193,8 +204,36 @@ func (e *Engine) notify(title, message string) {
 	}
 }
 
+func (e *Engine) ocrLoop(ctx context.Context) {
+	interval := e.cfg.OCR.IntervalSec
+	if interval < 3 {
+		interval = 10
+	}
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			matches, err := e.ocrEngine.ScanDesktop(e.cfg.Keywords)
+			if err != nil {
+				continue
+			}
+			for _, m := range matches {
+				log.Printf("[OCR触发] 关键词:%s", m.Keyword)
+				e.collect("ocr", m.Keyword, capture.WindowInfo{Title: m.Text})
+			}
+		}
+	}
+}
+
 func (e *Engine) Stop() {
 	if e.hotkey != nil {
 		e.hotkey.Stop()
+	}
+	if e.ocrEngine != nil {
+		e.ocrEngine.Close()
 	}
 }
