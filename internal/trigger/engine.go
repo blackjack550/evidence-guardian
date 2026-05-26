@@ -36,15 +36,9 @@ func NewEngine(cfg *config.Config, store *storage.Manager) *Engine {
 
 func (e *Engine) Start(ctx context.Context) {
 	go e.titleLoop(ctx)
-
-	if e.cfg.OCR.Enabled {
-		go e.ocrLoop(ctx)
-	}
-
 	go e.browserLoop(ctx)
 	go e.hotkeyLoop(ctx)
-
-	log.Println("触发引擎已启动")
+	log.Printf("触发引擎已启动 (模式:%s)", e.cfg.CaptureMode)
 }
 
 func (e *Engine) titleLoop(ctx context.Context) {
@@ -62,48 +56,9 @@ func (e *Engine) titleLoop(ctx context.Context) {
 			}
 			for _, m := range matches {
 				log.Printf("[标题触发] 关键词:%s 窗口:%s\n", m.Keyword, m.Title)
-				e.OnTrigger("title", m.Keyword, m.Window)
+				e.collect("title", m.Keyword, m.Window)
 			}
 		}
-	}
-}
-
-func (e *Engine) ocrLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Duration(e.cfg.OCR.IntervalSec) * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if !e.cfg.OCR.Enabled {
-				continue
-			}
-			go e.doOCRCheck()
-		}
-	}
-}
-
-func (e *Engine) doOCRCheck() {
-	var targets []capture.AppTarget
-	for _, t := range e.cfg.Targets {
-		if t.Enabled {
-			targets = append(targets, capture.AppTarget{
-				Name: t.Name, Process: t.Process,
-				WindowClass: t.WindowClass, Enabled: t.Enabled,
-			})
-		}
-	}
-
-	windows, err := capture.FindTargetWindows(targets)
-	if err != nil || len(windows) == 0 {
-		return
-	}
-
-	for _, w := range windows {
-		// TODO: capture window image -> OCR -> match keywords
-		_ = w
 	}
 }
 
@@ -129,58 +84,49 @@ func (e *Engine) ManualTrigger(source string) {
 	e.notify("证据卫士", "正在采集当前屏幕证据…")
 
 	shotDir := filepath.Join(e.cfg.Storage.Path, time.Now().Format("2006-01-02"))
+	ts := time.Now().UnixMilli()
+
 	img, err := capture.CaptureDesktop()
 	if err != nil {
 		log.Printf("截图失败: %v\n", err)
-		return
+	} else {
+		path, _ := capture.SavePNG(img, shotDir, fmt.Sprintf("manual_%s_%d", "screenshot", ts))
+		path = e.maybeEncrypt(path)
+		log.Printf("[取证] 截图: %s\n", path)
 	}
 
-	path, err := capture.SavePNG(img, shotDir, fmt.Sprintf("manual_%s", time.Now().Format("150405")))
-	if err != nil {
-		log.Printf("保存截图失败: %v\n", err)
-		return
-	}
+	// Video recording (async, non-blocking)
+	go func() {
+		vidPath, err := capture.RecordDesktop(shotDir, fmt.Sprintf("manual_%d", ts),
+			e.cfg.Capture.VideoDurationSec, e.cfg.Capture.VideoFPS)
+		if err != nil {
+			log.Printf("视频录制提示: %v\n", err)
+			return
+		}
+		vidPath = e.maybeEncrypt(vidPath)
+		log.Printf("[取证] 视频: %s\n", vidPath)
+	}()
 
-	if e.cfg.Storage.Encrypt {
-		encPath := path + ".enc"
-		data, _ := os.ReadFile(path)
-		encData, _ := e.encryptData(data)
-		os.WriteFile(encPath, encData, 0600)
-		os.Remove(path)
-		path = encPath
-	}
-
-	label := "截图"
-	if e.cfg.Storage.Encrypt {
-		label = "加密截图"
-	}
-	e.notify("证据卫士", fmt.Sprintf("%s已保存: %s", label, path))
-	log.Printf("[取证] %s已保存: %s\n", label, path)
+	e.notify("证据卫士", "截图已保存，视频录制中…")
 }
 
-func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo) {
-	record := &storage.EvidenceRecord{
+func (e *Engine) collect(source string, keyword string, win capture.WindowInfo) {
+	e.store.SaveRecord(&storage.EvidenceRecord{
 		TriggerSource: source,
 		Keyword:       keyword,
 		WindowTitle:   win.Title,
 		WindowClass:   win.ClassName,
 		ProcessID:     win.ProcessID,
 		Rect:          win.Rect,
-	}
-
-	e.store.SaveRecord(record)
+	})
 
 	shotDir := filepath.Join(e.cfg.Storage.Path, time.Now().Format("2006-01-02"))
+	ts := time.Now().UnixMilli()
+
 	img, err := capture.CaptureDesktop()
 	if err == nil {
-		path, _ := capture.SavePNG(img, shotDir, fmt.Sprintf("%s_%s", source, keyword))
-		if e.cfg.Storage.Encrypt && path != "" {
-			encPath := path + ".enc"
-			data, _ := os.ReadFile(path)
-			encData, _ := e.encryptData(data)
-			os.WriteFile(encPath, encData, 0600)
-			os.Remove(path)
-		}
+		path, _ := capture.SavePNG(img, shotDir, fmt.Sprintf("%s_%s_%d", source, keyword, ts))
+		path = e.maybeEncrypt(path)
 	}
 
 	log.Printf("[取证] %s → %s\n", source, keyword)
@@ -190,13 +136,7 @@ func (e *Engine) OnTrigger(source string, keyword string, win capture.WindowInfo
 		e.notify("证据卫士", fmt.Sprintf("检测到关键词「%s」，证据已采集", keyword))
 	case "alert":
 		e.notify("⚠️ 证据采集提醒",
-			fmt.Sprintf("屏幕出现敏感关键词「%s」\n系统已自动采集证据，请勿操作异常关闭", keyword))
-	}
-}
-
-func (e *Engine) notify(title, message string) {
-	if e.notifyHandler != nil {
-		e.notifyHandler(title, message)
+			fmt.Sprintf("屏幕出现敏感关键词「%s」\n系统已自动采集证据", keyword))
 	}
 }
 
@@ -216,26 +156,41 @@ func (e *Engine) browserLoop(ctx context.Context) {
 				if m.Tab.URL != "" {
 					win.Title = m.Tab.URL + " - " + win.Title
 				}
-				e.OnTrigger("browser_"+m.Browser, m.Keyword, win)
+				e.collect("browser_"+m.Browser, m.Keyword, win)
 			}
 		}
 	}
 }
 
+func (e *Engine) maybeEncrypt(path string) string {
+	if path == "" || !e.cfg.Storage.Encrypt {
+		return path
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return path
+	}
+	encData, err := e.encryptData(data)
+	if err != nil {
+		return path
+	}
+	encPath := path + ".enc"
+	os.WriteFile(encPath, encData, 0600)
+	os.Remove(path)
+	return encPath
+}
+
 func (e *Engine) encryptData(data []byte) ([]byte, error) {
-	cfg := e.cfg.Storage
-	if cfg.EncryptMethod == "passphrase" && cfg.Passphrase != "" {
-		return crypto.EncryptWithPassphrase(data, cfg.Passphrase)
+	if e.cfg.Storage.EncryptMethod == "passphrase" && e.cfg.Storage.Passphrase != "" {
+		return crypto.EncryptWithPassphrase(data, e.cfg.Storage.Passphrase)
 	}
 	return crypto.Protect(data)
 }
 
-func (e *Engine) decryptData(data []byte) ([]byte, error) {
-	cfg := e.cfg.Storage
-	if cfg.EncryptMethod == "passphrase" && cfg.Passphrase != "" {
-		return crypto.DecryptWithPassphrase(data, cfg.Passphrase)
+func (e *Engine) notify(title, message string) {
+	if e.notifyHandler != nil {
+		e.notifyHandler(title, message)
 	}
-	return crypto.Unprotect(data)
 }
 
 func (e *Engine) Stop() {

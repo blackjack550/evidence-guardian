@@ -1,19 +1,22 @@
 package ocr
 
-import "image"
+import (
+	"log"
+)
 
-type Result struct {
-	Text      string
-	Confidence float64
-	Keywords  []string
+type Match struct {
+	Text    string
+	Keyword string
 }
 
-type Engine interface {
-	Recognize(img *image.RGBA) (*Result, error)
+type Engine struct {
+	ready bool
 }
 
-type Config struct {
-	Enabled     bool
-	IntervalSec int
-	Keywords    []string
+func New() *Engine {
+	log.Println("OCR引擎需要Tesseract支持，当前不可用")
+	return &Engine{ready: false}
 }
+
+func (e *Engine) IsReady() bool { return e.ready }
+func (e *Engine) Close()        {}
