@@ -177,7 +177,9 @@ function loadConfig() {
     document.getElementById('storeMaxSize').value = d.storage?.max_size_gb || 50;
     document.getElementById('storeEncrypt').checked = d.storage?.encrypt !== false;
     document.getElementById('encryptMethod').value = d.storage?.encrypt_method || 'dpapi';
+    const pw = d.storage?.passphrase;
     document.getElementById('storePassphrase').value = '';
+    document.getElementById('storePassphrase').placeholder = (pw && pw !== '') ? '已设置密码（输入新密码替换）' : '设置解密密码';
     toggleEncryptOptions();
 
     // Hotkey

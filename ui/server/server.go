@@ -19,6 +19,7 @@ import (
 	"evidence-guardian/internal/config"
 	"evidence-guardian/internal/crypto"
 	"evidence-guardian/internal/trigger"
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed templates
@@ -136,9 +137,23 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		if updated.Hotkey.KeyCode != 0 {
 			s.cfg.Hotkey.KeyCode = updated.Hotkey.KeyCode
 		}
+		s.saveConfig()
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) saveConfig() {
+	data, err := yaml.Marshal(s.cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "saveConfig marshal error: %v\n", err)
+		return
+	}
+	exeDir := filepath.Dir(os.Args[0])
+	cfgPath := filepath.Join(exeDir, "config.yaml")
+	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "saveConfig write error: %v\n", err)
 	}
 }
 

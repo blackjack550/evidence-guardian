@@ -45,8 +45,10 @@ func main() {
 		return
 	}
 
+	exeDir := filepath.Dir(os.Args[0])
+	cfgPath := filepath.Join(exeDir, "config.yaml")
 	logFile, err := os.OpenFile(
-		filepath.Join(filepath.Dir(os.Args[0]), "evidence-guardian.log"),
+		filepath.Join(exeDir, "evidence-guardian.log"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644,
 	)
 	if err == nil {
@@ -58,7 +60,7 @@ func main() {
 
 	log.Println("证据卫士 v0.1.0 — 劳动者权益保护取证系统")
 
-	cfg, err := config.Load("config.yaml")
+	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
