@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -63,6 +64,15 @@ func main() {
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
+	}
+
+	// Decrypt passphrase if it was stored encrypted
+	if cfg.Storage.Passphrase != "" {
+		if dec, err := base64.StdEncoding.DecodeString(cfg.Storage.Passphrase); err == nil {
+			if plain, err := crypto.Unprotect(dec); err == nil {
+				cfg.Storage.Passphrase = string(plain)
+			}
+		}
 	}
 
 	store, err := storage.New(cfg.Storage)
