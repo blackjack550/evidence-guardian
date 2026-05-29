@@ -26,17 +26,12 @@ func newChromeDetector(name, process string) *chromeDetector {
 func (c *chromeDetector) Name() string { return c.name }
 
 func (c *chromeDetector) GetTabs(ctx context.Context) ([]TabInfo, error) {
-	// Try to connect to already-running instance
 	allocCtx, cancel := c.connect(ctx)
 	if cancel != nil {
 		defer cancel()
 	} else {
-		// Try to start a new instance with debug port
-		allocCtx, cancel = c.launch(ctx)
-		if cancel == nil {
-			return nil, fmt.Errorf("%s 调试端口未开启", c.name)
-		}
-		defer cancel()
+		// Only try to connect, never auto-launch browser
+		return nil, fmt.Errorf("%s 未开启调试端口", c.name)
 	}
 
 	tabsCtx, cancel := chromedp.NewContext(allocCtx)

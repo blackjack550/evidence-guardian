@@ -94,21 +94,21 @@ func (e *Engine) ManualTrigger(source string) {
 	log.Printf("[手动取证] 来源:%s\n", source)
 	e.notify("证据卫士", "正在采集当前屏幕证据…")
 
-	shotDir := filepath.Join(e.cfg.Storage.Path, time.Now().Format("2006-01-02"))
-	ts := time.Now().UnixMilli()
+	record := &storage.EvidenceRecord{TriggerSource: source, Keyword: "manual"}
+	e.store.SaveRecord(record)
+	shotDir := filepath.Dir(record.ScreenshotPath)
 
 	img, err := capture.CaptureDesktop()
 	if err != nil {
 		log.Printf("截图失败: %v\n", err)
 	} else {
-		path, _ := capture.SavePNG(img, shotDir, fmt.Sprintf("manual_%s_%d", "screenshot", ts))
+		path, _ := capture.SavePNG(img, shotDir, "screenshot")
 		path = e.maybeEncrypt(path)
 		log.Printf("[取证] 截图: %s\n", path)
 	}
 
-	// Video recording (async, non-blocking)
 	go func() {
-		vidPath, err := capture.RecordDesktop(shotDir, fmt.Sprintf("manual_%d", ts),
+		vidPath, err := capture.RecordDesktop(shotDir, "video",
 			e.cfg.Capture.VideoDurationSec, e.cfg.Capture.VideoFPS)
 		if err != nil {
 			log.Printf("视频录制提示: %v\n", err)
@@ -122,21 +122,20 @@ func (e *Engine) ManualTrigger(source string) {
 }
 
 func (e *Engine) collect(source string, keyword string, win capture.WindowInfo) {
-	e.store.SaveRecord(&storage.EvidenceRecord{
+	record := &storage.EvidenceRecord{
 		TriggerSource: source,
 		Keyword:       keyword,
 		WindowTitle:   win.Title,
 		WindowClass:   win.ClassName,
 		ProcessID:     win.ProcessID,
 		Rect:          win.Rect,
-	})
-
-	shotDir := filepath.Join(e.cfg.Storage.Path, time.Now().Format("2006-01-02"))
-	ts := time.Now().UnixMilli()
+	}
+	e.store.SaveRecord(record)
+	shotDir := filepath.Dir(record.ScreenshotPath)
 
 	img, err := capture.CaptureDesktop()
 	if err == nil {
-		path, _ := capture.SavePNG(img, shotDir, fmt.Sprintf("%s_%s_%d", source, keyword, ts))
+		path, _ := capture.SavePNG(img, shotDir, fmt.Sprintf("%s_%s", source, keyword))
 		path = e.maybeEncrypt(path)
 	}
 

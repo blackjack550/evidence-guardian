@@ -38,22 +38,19 @@ func New(cfg config.StorageConfig) (*Manager, error) {
 }
 
 func (m *Manager) SaveRecord(r *EvidenceRecord) error {
-	dateStr := time.Now().Format("2006-01-02")
-	timeStr := time.Now().Format("150405")
+	now := time.Now()
+	dateStr := now.Format("2006-01-02")
+	timeStr := now.Format("150405")
 	dir := filepath.Join(m.cfg.Path, dateStr, fmt.Sprintf("%s_%s", timeStr, r.Keyword))
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("创建证据目录失败: %w", err)
 	}
 
-	metaPath := filepath.Join(dir, "metadata.json")
-	screenshotPath := filepath.Join(dir, fmt.Sprintf("%s_screenshot.png", r.WindowClass))
-	videoPath := filepath.Join(dir, fmt.Sprintf("%s_video.mp4", r.WindowClass))
-
-	r.Timestamp = time.Now()
-	r.MetadataPath = metaPath
-	r.ScreenshotPath = screenshotPath
-	r.VideoPath = videoPath
+	r.Timestamp = now
+	r.MetadataPath = filepath.Join(dir, "metadata.json")
+	r.ScreenshotPath = filepath.Join(dir, "screenshot.png")
+	r.VideoPath = filepath.Join(dir, "video.mp4")
 
 	if m.encrypt {
 		r.ScreenshotPath += ".enc"
