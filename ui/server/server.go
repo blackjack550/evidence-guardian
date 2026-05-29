@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"context"
 	"embed"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -146,19 +145,9 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) saveConfig() {
-	// Encrypt passphrase before saving to disk
-	plainPass := s.cfg.Storage.Passphrase
-	if plainPass != "" {
-		enc, err := crypto.Protect([]byte(plainPass))
-		if err == nil {
-			s.cfg.Storage.Passphrase = base64.StdEncoding.EncodeToString(enc)
-		}
-	}
-
 	data, err := yaml.Marshal(s.cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "saveConfig marshal error: %v\n", err)
-		s.cfg.Storage.Passphrase = plainPass
 		return
 	}
 	exeDir := filepath.Dir(os.Args[0])
@@ -166,7 +155,6 @@ func (s *Server) saveConfig() {
 	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "saveConfig write error: %v\n", err)
 	}
-	s.cfg.Storage.Passphrase = plainPass
 }
 
 func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {
