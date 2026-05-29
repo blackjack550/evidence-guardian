@@ -102,7 +102,12 @@ func (s *Server) handlePage(tmpl *template.Template, name string) http.HandlerFu
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		json.NewEncoder(w).Encode(s.cfg)
+		// Mask passphrase in API response for security
+		masked := *s.cfg
+		if masked.Storage.Passphrase != "" {
+			masked.Storage.Passphrase = "********"
+		}
+		json.NewEncoder(w).Encode(masked)
 	case http.MethodPost:
 		var updated config.Config
 		if err := json.NewDecoder(r.Body).Decode(&updated); err != nil {

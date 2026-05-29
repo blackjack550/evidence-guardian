@@ -19,8 +19,8 @@ import (
 	"evidence-guardian/internal/storage"
 	"evidence-guardian/internal/trigger"
 	"evidence-guardian/ui/server"
-	"github.com/kbinani/screenshot"
 	"evidence-guardian/ui/tray"
+	"github.com/kbinani/screenshot"
 )
 
 func main() {
@@ -264,3 +264,5 @@ func runOCRBenchmark() {
 		fmt.Printf("  ❌ CPU开销 %.1f%%，过高，建议仅手动触发\n", usage)
 	}
 }
+
+

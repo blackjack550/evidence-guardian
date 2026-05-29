@@ -43,7 +43,7 @@ type StorageConfig struct {
 	AutoClean  bool   `json:"auto_clean" yaml:"auto_clean"`
 	Encrypt    bool   `json:"encrypt" yaml:"encrypt"`
 	EncryptMethod string `json:"encrypt_method" yaml:"encrypt_method"` // dpapi | passphrase
-	Passphrase string `json:"-" yaml:"passphrase"`                    // never expose in JSON
+	Passphrase string `json:"passphrase" yaml:"passphrase"`
 }
 
 type HotkeyConfig struct {
