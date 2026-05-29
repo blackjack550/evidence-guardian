@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/chromedp/cdproto/target"
@@ -25,13 +26,15 @@ func newChromeDetector(name, process string) *chromeDetector {
 func (c *chromeDetector) Name() string { return c.name }
 
 func (c *chromeDetector) GetTabs(ctx context.Context) ([]TabInfo, error) {
+	// Try to connect to already-running instance
 	allocCtx, cancel := c.connect(ctx)
 	if cancel != nil {
 		defer cancel()
 	} else {
+		// Try to start a new instance with debug port
 		allocCtx, cancel = c.launch(ctx)
 		if cancel == nil {
-			return nil, fmt.Errorf("无法连接或启动%s", c.name)
+			return nil, fmt.Errorf("%s 调试端口未开启", c.name)
 		}
 		defer cancel()
 	}
@@ -77,6 +80,44 @@ func (c *chromeDetector) GetTabs(ctx context.Context) ([]TabInfo, error) {
 	return tabs, nil
 }
 
+func (c *chromeDetector) findBrowserExe() string {
+	for _, p := range c.findBrowserPaths() {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+func (c *chromeDetector) findBrowserPaths() []string {
+	localAppData := os.Getenv("LOCALAPPDATA")
+	programFiles := os.Getenv("ProgramFiles")
+	programFilesX86 := os.Getenv("ProgramFiles(x86)")
+	userProfile := os.Getenv("USERPROFILE")
+
+	switch c.process {
+	case "chrome.exe":
+		return []string{
+			programFiles + `\Google\Chrome\Application\chrome.exe`,
+			programFilesX86 + `\Google\Chrome\Application\chrome.exe`,
+			localAppData + `\Google\Chrome\Application\chrome.exe`,
+			userProfile + `\AppData\Local\Google\Chrome\Application\chrome.exe`,
+			`C:\Program Files\Google\Chrome\Application\chrome.exe`,
+			`C:\Program Files (x86)\Google\Chrome\Application\chrome.exe`,
+		}
+	case "msedge.exe":
+		return []string{
+			programFilesX86 + `\Microsoft\Edge\Application\msedge.exe`,
+			programFiles + `\Microsoft\Edge\Application\msedge.exe`,
+			localAppData + `\Microsoft\Edge\Application\msedge.exe`,
+			`C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`,
+			`C:\Program Files\Microsoft\Edge\Application\msedge.exe`,
+		}
+	default:
+		return []string{c.process}
+	}
+}
+
 func (c *chromeDetector) connect(ctx context.Context) (context.Context, context.CancelFunc) {
 	for _, port := range []int{9222, 9223, 9224, 9225} {
 		if checkPort(port) {
@@ -95,28 +136,20 @@ func (c *chromeDetector) launch(ctx context.Context) (context.Context, context.C
 		return nil, nil
 	}
 
-	paths := []string{
-		fmt.Sprintf(`C:\Program Files\%s\Application\%s`, c.name, c.process),
-		fmt.Sprintf(`C:\Program Files (x86)\%s\Application\%s`, c.name, c.process),
+	exePath := c.findBrowserExe()
+	if exePath == "" {
+		return nil, nil
 	}
 
-	var cmd *exec.Cmd
-	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
-			cmd = exec.Command(path,
-				fmt.Sprintf("--remote-debugging-port=%d", port),
-				"--no-first-run", "--new-window", "about:blank")
-			break
-		}
-	}
-	if cmd == nil {
-		cmd = exec.Command(c.process,
-			fmt.Sprintf("--remote-debugging-port=%d", port),
-			"--no-first-run", "--new-window", "about:blank")
-	}
+	userDataDir := os.TempDir() + fmt.Sprintf("\\evidence_guardian_chrome_%d", port)
+	cmd := exec.Command(exePath,
+		fmt.Sprintf("--remote-debugging-port=%d", port),
+		"--no-first-run",
+		"--new-window", "about:blank")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	if err := cmd.Start(); err != nil {
-		log.Printf("[%s] 启动失败: %v", c.name, err)
+		os.RemoveAll(userDataDir)
 		return nil, nil
 	}
 

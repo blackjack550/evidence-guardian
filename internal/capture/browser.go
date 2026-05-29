@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -28,10 +29,13 @@ func DetectBrowsers(ctx context.Context, keywords []string) []TabMatch {
 	} {
 		tabs, err := b.GetTabs(ctx)
 		if err != nil {
-			log.Printf("[%s] 连接失败: %v", b.Name(), err)
+			browserLogOnce.Do(func() {
+				log.Printf("[浏览器] CDP检测: %v", err)
+				log.Printf("[浏览器] 如需此功能，启动浏览器时加 --remote-debugging-port=9222")
+			})
 			continue
 		}
-		log.Printf("[%s] 检测到 %d 个标签页", b.Name(), len(tabs))
+		log.Printf("[浏览器] %s 已连接，%d 个标签页", b.Name(), len(tabs))
 
 		for _, tab := range tabs {
 			for _, kw := range keywords {
@@ -48,6 +52,8 @@ func DetectBrowsers(ctx context.Context, keywords []string) []TabMatch {
 	}
 	return matches
 }
+
+var browserLogOnce sync.Once
 
 type TabMatch struct {
 	Browser string

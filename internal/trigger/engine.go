@@ -152,7 +152,11 @@ func (e *Engine) collect(source string, keyword string, win capture.WindowInfo) 
 }
 
 func (e *Engine) browserLoop(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	// Try once immediately
+	e.doBrowserCheck(ctx)
+
+	// Then retry every 30 seconds (not 5, to avoid flooding)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -160,16 +164,20 @@ func (e *Engine) browserLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			matches := capture.DetectBrowsers(ctx, e.cfg.Keywords)
-			for _, m := range matches {
-				log.Printf("[浏览器触发] %s 关键词:%s URL:%s", m.Browser, m.Keyword, m.Tab.URL)
-				win := capture.WindowInfo{Title: m.Tab.Title}
-				if m.Tab.URL != "" {
-					win.Title = m.Tab.URL + " - " + win.Title
-				}
-				e.collect("browser_"+m.Browser, m.Keyword, win)
-			}
+			e.doBrowserCheck(ctx)
 		}
+	}
+}
+
+func (e *Engine) doBrowserCheck(ctx context.Context) {
+	matches := capture.DetectBrowsers(ctx, e.cfg.Keywords)
+	for _, m := range matches {
+		log.Printf("[浏览器触发] %s 关键词:%s URL:%s", m.Browser, m.Keyword, m.Tab.URL)
+		win := capture.WindowInfo{Title: m.Tab.Title}
+		if m.Tab.URL != "" {
+			win.Title = m.Tab.URL + " - " + win.Title
+		}
+		e.collect("browser_"+m.Browser, m.Keyword, win)
 	}
 }
 
