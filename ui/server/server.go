@@ -11,9 +11,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"evidence-guardian/internal/config"
@@ -53,6 +55,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// API
 	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/trigger", s.handleTrigger)
+	mux.HandleFunc("/api/shortcut", s.handleShortcut)
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/evidence", s.handleEvidenceList)
 	mux.HandleFunc("/api/evidence/view", s.handleEvidenceView)
@@ -155,6 +158,42 @@ func (s *Server) saveConfig() {
 	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "saveConfig write error: %v\n", err)
 	}
+}
+
+func (s *Server) handleShortcut(w http.ResponseWriter, r *http.Request) {
+	browser := r.URL.Query().Get("browser")
+	if browser != "chrome" && browser != "edge" {
+		json.NewEncoder(w).Encode(map[string]string{"msg": "不支持"})
+		return
+	}
+
+	var exePath, shortcutName string
+	if browser == "chrome" {
+		exePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+		shortcutName = "Chrome（证据卫士调试模式）"
+	} else {
+		exePath = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+		shortcutName = "Edge（证据卫士调试模式）"
+	}
+
+	if _, err := os.Stat(exePath); os.IsNotExist(err) {
+		json.NewEncoder(w).Encode(map[string]string{"msg": "未找到" + browser + "，请在浏览器设置中确认安装路径"})
+		return
+	}
+
+	desktop := os.Getenv("USERPROFILE") + "\\Desktop"
+	ps := fmt.Sprintf(`
+$ws = New-Object -ComObject WScript.Shell
+$s = $ws.CreateShortcut('%s\\%s.lnk')
+$s.TargetPath = '%s'
+$s.Arguments = '--remote-debugging-port=9222'
+$s.Save()
+`, desktop, shortcutName, exePath)
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", ps)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.Run()
+
+	json.NewEncoder(w).Encode(map[string]string{"msg": fmt.Sprintf("已生成到桌面：%s", shortcutName)})
 }
 
 func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {

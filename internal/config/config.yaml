@@ -41,6 +41,14 @@ targets:
     process: Feishu.exe
     window_class: Chrome_WidgetWin_0
     enabled: true
+  - name: Outlook
+    process: OUTLOOK.EXE
+    window_class: rctrl_renwnd32
+    enabled: true
+  - name: Foxmail
+    process: Foxmail.exe
+    window_class: FoxmailMainForm
+    enabled: true
 
 ocr:
   interval_sec: 10

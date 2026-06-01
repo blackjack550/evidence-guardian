@@ -63,6 +63,8 @@ var DefaultConfig = Config{
 		{Name: "QQ", Process: "QQ.exe", WindowClass: "TXGuiFoundation", Enabled: true},
 		{Name: "微信", Process: "WeChat.exe", WindowClass: "WeChatMainWndForPC", Enabled: true},
 		{Name: "飞书", Process: "Feishu.exe", WindowClass: "Chrome_WidgetWin_0", Enabled: true},
+		{Name: "Outlook", Process: "OUTLOOK.EXE", WindowClass: "rctrl_renwnd32", Enabled: true},
+		{Name: "Foxmail", Process: "Foxmail.exe", WindowClass: "FoxmailMainForm", Enabled: true},
 	},
 	OCR: OCRConfig{IntervalSec: 10, Enabled: true},
 	Capture: CaptureConfig{VideoDurationSec: 8, VideoFPS: 10, ScreenshotQuality: 90},
