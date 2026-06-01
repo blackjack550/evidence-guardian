@@ -43,7 +43,7 @@ func main() {
 		log.SetOutput(os.Stderr)
 	}
 
-	log.Println("证据卫士 v0.1.0 — 劳动者权益保护取证系统")
+	log.Println("证据卫士 v0.2.0 — 劳动者权益保护取证系统")
 
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
