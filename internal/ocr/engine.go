@@ -39,7 +39,37 @@ func New() *Engine {
 func (e *Engine) IsReady() bool { return e.ready }
 func (e *Engine) Close()        {}
 
+func getTessdataPrefix() string {
+	if p := os.Getenv("TESSDATA_PREFIX"); p != "" {
+		return p
+	}
+	// Check bundled tesseract/tessdata next to exe
+	exeDir := filepath.Dir(os.Args[0])
+	bundled := filepath.Join(exeDir, "tesseract", "tessdata")
+	if _, err := os.Stat(filepath.Join(bundled, "chi_sim.traineddata")); err == nil {
+		return bundled
+	}
+	// Check default user profile location
+	userPrefix := os.Getenv("USERPROFILE") + "\\.tesseract\\tessdata"
+	if _, err := os.Stat(userPrefix + "\\chi_sim.traineddata"); err == nil {
+		return userPrefix
+	}
+	// Check install directory
+	progPrefix := "C:\\Program Files\\Tesseract-OCR\\tessdata"
+	if _, err := os.Stat(progPrefix + "\\chi_sim.traineddata"); err == nil {
+		return progPrefix
+	}
+	return ""
+}
+
 func findTesseract() string {
+	// First check app directory (bundled portable)
+	exeDir := filepath.Dir(os.Args[0])
+	bundled := filepath.Join(exeDir, "tesseract", "tesseract.exe")
+	if _, err := os.Stat(bundled); err == nil {
+		return bundled
+	}
+	// Then common locations
 	paths := []string{
 		"tesseract",
 		"C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
@@ -57,14 +87,32 @@ func findTesseract() string {
 	return ""
 }
 
+func findTessdata(exeDir string) string {
+	tessDir := filepath.Join(exeDir, "tesseract", "tessdata")
+	if _, err := os.Stat(filepath.Join(tessDir, "chi_sim.traineddata")); err == nil {
+		return tessDir
+	}
+	return ""
+}
+
+func tessEnv() string {
+	p := getTessdataPrefix()
+	if p != "" {
+		return "TESSDATA_PREFIX=" + p
+	}
+	return ""
+}
+
 func testTesseract(path string) bool {
 	cmd := exec.Command(path, "--list-langs")
-	cmd.Env = append(os.Environ(), "TESSDATA_PREFIX="+os.Getenv("TESSDATA_PREFIX"))
+	if e := tessEnv(); e != "" {
+		cmd.Env = append(os.Environ(), e)
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return false
 	}
-	hasChinese := strings.Contains(string(strings.ToLower(string(out))), "chi_sim")
+	hasChinese := strings.Contains(strings.ToLower(string(out)), "chi_sim")
 	if !hasChinese {
 		log.Println("Tesseract 缺少中文语言包 (chi_sim)")
 	}
@@ -85,7 +133,9 @@ func (e *Engine) RecognizeBytes(imgData []byte) (string, error) {
 	cmd := exec.Command(e.tesseractPath, imgPath, outPath,
 		"-l", "chi_sim+eng", "--psm", "3")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	cmd.Env = append(os.Environ(), "TESSDATA_PREFIX="+os.Getenv("TESSDATA_PREFIX"))
+	if e := tessEnv(); e != "" {
+		cmd.Env = append(os.Environ(), e)
+	}
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("Tesseract识别失败: %w", err)
 	}

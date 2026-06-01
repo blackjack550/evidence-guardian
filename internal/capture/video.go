@@ -117,14 +117,19 @@ func (r *Recorder) Stop() {
 }
 
 func findFFmpeg() string {
-	// Common FFmpeg locations on Windows
+	// First check app directory (bundled)
+	exeDir := filepath.Dir(os.Args[0])
+	bundled := filepath.Join(exeDir, "ffmpeg.exe")
+	if _, err := os.Stat(bundled); err == nil {
+		return bundled
+	}
+	// Then common locations
 	paths := []string{
-		"ffmpeg", // PATH
+		"ffmpeg",
 		"C:\\ffmpeg\\bin\\ffmpeg.exe",
 		"C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
 		"C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
 	}
-
 	for _, p := range paths {
 		if _, err := exec.LookPath(p); err == nil {
 			return p
