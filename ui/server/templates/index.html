@@ -35,6 +35,13 @@ input[type=number] { width: 80px; }
 
 <div class="card" id="statusBar">
   <div class="row"><label>运行状态</label><span id="statusText"><span class="status-dot green"></span>运行中</span></div>
+  <div class="row">
+    <label>系统组件</label>
+    <span id="componentStatus" style="font-size:13px;">
+      <span id="statusTesseract" class="status-dot gray"></span>Tesseract(OCR)
+      <span id="statusFFmpeg" class="status-dot gray" style="margin-left:15px;"></span>FFmpeg(视频)
+    </span>
+  </div>
 </div>
 
 <div class="card">
@@ -54,6 +61,23 @@ input[type=number] { width: 80px; }
       <option value="toast">系统通知提示</option>
       <option value="alert">弹窗提醒</option>
     </select>
+  </div>
+</div>
+
+<div class="card">
+  <h2>OCR 检测设置</h2>
+  <div class="row">
+    <label>IM内容OCR</label>
+    <label style="min-width:auto;font-weight:normal;font-size:14px;color:#333;cursor:pointer;">
+      <input type="checkbox" id="ocrEnabled"> 启用OCR检测IM聊天内容
+    </label>
+  </div>
+  <div class="row">
+    <label>检测间隔</label>
+    <input type="number" id="ocrInterval" style="width:60px;"> <span style="font-size:13px;color:#888;">秒</span>
+  </div>
+  <div class="row" style="font-size:12px;color:#888;">
+    ⚡ 需要安装 Tesseract OCR（见系统组件状态），且采集模式设为「桌面+浏览器」或「全面」
   </div>
 </div>
 
@@ -166,6 +190,16 @@ function loadStatus() {
   fetch('/api/status').then(r=>r.json()).then(d=>{
     document.getElementById('captureMode').value = d.capture_mode || 'browser';
     document.getElementById('notifyMode').value = d.notify_mode || 'silent';
+    document.getElementById('ocrEnabled').checked = d.ocr_enabled !== false;
+    document.getElementById('ocrInterval').value = d.ocr_interval || 10;
+
+    const ts = document.getElementById('statusTesseract');
+    ts.className = 'status-dot ' + (d.tesseract ? 'green' : 'gray');
+    ts.nextSibling.textContent = 'Tesseract(OCR)' + (d.tesseract ? ' ✅' : ' ❌');
+
+    const ff = document.getElementById('statusFFmpeg');
+    ff.className = 'status-dot ' + (d.ffmpeg ? 'green' : 'gray');
+    ff.nextSibling.textContent = 'FFmpeg(视频)' + (d.ffmpeg ? ' ✅' : ' ❌');
   });
 }
 
@@ -214,6 +248,10 @@ function saveConfig() {
     body: JSON.stringify({
       capture_mode: document.getElementById('captureMode').value,
       notify_on_trigger: document.getElementById('notifyMode').value,
+      ocr: {
+        enabled: document.getElementById('ocrEnabled').checked,
+        interval_sec: parseInt(document.getElementById('ocrInterval').value) || 10,
+      },
       storage: {
         path: document.getElementById('storePath').value,
         max_size_gb: parseInt(document.getElementById('storeMaxSize').value) || 50,
@@ -254,6 +292,8 @@ function createShortcut(browser) {
 let saveTimer;
 document.getElementById('captureMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.getElementById('notifyMode').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.getElementById('ocrEnabled').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
+document.getElementById('ocrInterval').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.getElementById('storeEncrypt').onchange = () => { toggleEncryptOptions(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.getElementById('encryptMethod').onchange = () => { toggleEncryptOptions(); clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };
 document.getElementById('storePassphrase').onchange = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveConfig, 300); };

@@ -206,11 +206,38 @@ func (s *Server) handleTrigger(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
+	tesseractOk := false
+	if _, err := exec.LookPath("tesseract"); err == nil {
+		tesseractOk = true
+	} else {
+		for _, p := range []string{"C:\\Program Files\\Tesseract-OCR\\tesseract.exe", "C:\\Program Files (x86)\\Tesseract-OCR\\tesseract.exe"} {
+			if _, err := os.Stat(p); err == nil {
+				tesseractOk = true
+				break
+			}
+		}
+	}
+
+	ffmpegOk := false
+	if _, err := exec.LookPath("ffmpeg"); err == nil {
+		ffmpegOk = true
+	} else {
+		for _, p := range []string{"C:\\ffmpeg\\bin\\ffmpeg.exe", "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe"} {
+			if _, err := os.Stat(p); err == nil {
+				ffmpegOk = true
+				break
+			}
+		}
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"capture_mode":  s.cfg.CaptureMode,
-		"notify_mode":   s.cfg.NotifyOnTrigger,
-		"ocr_enabled":   s.cfg.OCR.Enabled,
-		"targets_count": len(s.cfg.Targets),
+		"capture_mode":   s.cfg.CaptureMode,
+		"notify_mode":    s.cfg.NotifyOnTrigger,
+		"ocr_enabled":    s.cfg.OCR.Enabled,
+		"ocr_interval":   s.cfg.OCR.IntervalSec,
+		"tesseract":      tesseractOk,
+		"ffmpeg":         ffmpegOk,
+		"targets_count":  len(s.cfg.Targets),
 	})
 }
 

@@ -3,9 +3,13 @@ package trigger
 import (
 	"context"
 	"fmt"
+	"image"
+	"image/png"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"evidence-guardian/internal/capture"
@@ -13,6 +17,7 @@ import (
 	"evidence-guardian/internal/crypto"
 	"evidence-guardian/internal/ocr"
 	"evidence-guardian/internal/storage"
+	"github.com/kbinani/screenshot"
 )
 
 type Engine struct {
@@ -211,26 +216,120 @@ func (e *Engine) notify(title, message string) {
 	}
 }
 
+type ocrDedup struct {
+	mu       sync.Mutex
+	recent   map[string]time.Time
+	cooldown time.Duration
+}
+
+func newOCRDedup() *ocrDedup {
+	return &ocrDedup{recent: make(map[string]time.Time), cooldown: 30 * time.Second}
+}
+
+func (d *ocrDedup) allow(key string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	now := time.Now()
+	if last, ok := d.recent[key]; ok && now.Sub(last) < d.cooldown {
+		return false
+	}
+	d.recent[key] = now
+	for k, v := range d.recent {
+		if now.Sub(v) > d.cooldown*2 {
+			delete(d.recent, k)
+		}
+	}
+	return true
+}
+
+var ocrOnce sync.Once
+
 func (e *Engine) ocrLoop(ctx context.Context) {
+	if e.ocrEngine == nil || !e.ocrEngine.IsReady() {
+		ocrOnce.Do(func() { log.Println("OCR引擎未就绪，跳过IM内容检测") })
+		return
+	}
+
 	interval := e.cfg.OCR.IntervalSec
 	if interval < 3 {
 		interval = 10
 	}
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
+	dedup := newOCRDedup()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			matches, err := e.ocrEngine.ScanDesktop(e.cfg.Keywords)
-			if err != nil {
-				continue
-			}
-			for _, m := range matches {
-				log.Printf("[OCR触发] 关键词:%s", m.Keyword)
-				e.collect("ocr", m.Keyword, capture.WindowInfo{Title: m.Text})
+			e.scanIMWindows(dedup)
+		}
+	}
+}
+
+func (e *Engine) scanIMWindows(dedup *ocrDedup) {
+	// Find IM windows (all enabled targets except Chrome/Edge)
+	var targets []capture.AppTarget
+	for _, t := range e.cfg.Targets {
+		if !t.Enabled {
+			continue
+		}
+		if t.Process == "chrome.exe" || t.Process == "msedge.exe" {
+			continue
+		}
+		targets = append(targets, capture.AppTarget{
+			Name: t.Name, Process: t.Process,
+			WindowClass: t.WindowClass, Enabled: true,
+		})
+	}
+
+	windows, err := capture.FindTargetWindows(targets)
+	if err != nil || len(windows) == 0 {
+		return
+	}
+
+	for _, win := range windows {
+		key := fmt.Sprintf("ocr_%d_%s", win.HWND, strings.Join(e.cfg.Keywords, ","))
+		if !dedup.allow(key) {
+			continue
+		}
+
+		// Capture the window region
+		bounds := image.Rect(
+			int(win.Rect.Left), int(win.Rect.Top),
+			int(win.Rect.Right), int(win.Rect.Bottom),
+		)
+		if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+			continue
+		}
+
+		img, err := screenshot.CaptureRect(bounds)
+		if err != nil {
+			continue
+		}
+
+		// Save to temp and OCR
+		tmpPath := filepath.Join(os.TempDir(), "ev_ocr_window.png")
+		f, _ := os.Create(tmpPath)
+		if f != nil {
+			png.Encode(f, img)
+			f.Close()
+		}
+		data, _ := os.ReadFile(tmpPath)
+		os.Remove(tmpPath)
+
+		text, err := e.ocrEngine.RecognizeBytes(data)
+		if err != nil {
+			continue
+		}
+
+		textLower := strings.ToLower(text)
+		for _, kw := range e.cfg.Keywords {
+			if strings.Contains(textLower, strings.ToLower(kw)) {
+				log.Printf("[IM-OCR] %s 检测到关键词:%s", win.ClassName, kw)
+				e.collect("ocr_im", kw, win)
+				break
 			}
 		}
 	}
