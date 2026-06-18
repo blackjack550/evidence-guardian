@@ -1,0 +1,75 @@
+keywords:
+  - 调薪
+  - 降薪
+  - 转岗
+  - 待岗
+  - 辞退
+  - 优化
+  - 解除合同
+  - 劝退
+
+targets:
+  - name: Chrome
+    process: chrome.exe
+    window_class: Chrome_WidgetWin_1
+    enabled: true
+  - name: Edge
+    process: msedge.exe
+    window_class: Chrome_WidgetWin_1
+    enabled: true
+  - name: Firefox
+    process: firefox.exe
+    window_class: MozillaWindowClass
+    enabled: true
+  - name: 企业微信
+    process: WXWork.exe
+    window_class: WXWorkMainWindow
+    enabled: true
+  - name: 钉钉
+    process: DingTalk.exe
+    window_class: DingTalk
+    enabled: true
+  - name: QQ
+    process: QQ.exe
+    window_class: TXGuiFoundation
+    enabled: true
+  - name: 微信
+    process: WeChat.exe
+    window_class: WeChatMainWndForPC
+    enabled: true
+  - name: 飞书
+    process: Feishu.exe
+    window_class: Chrome_WidgetWin_0
+    enabled: true
+  - name: Outlook
+    process: OUTLOOK.EXE
+    window_class: rctrl_renwnd32
+    enabled: true
+  - name: Foxmail
+    process: Foxmail.exe
+    window_class: TApplication
+    enabled: true
+
+ocr:
+  interval_sec: 10
+  enabled: true
+
+capture:
+  video_duration_sec: 8
+  video_fps: 10
+  screenshot_quality: 90
+
+storage:
+  path: ./evidence
+  max_size_gb: 50
+  auto_clean: true
+  encrypt: true
+
+hotkey:
+  modifiers: 6
+  key_code: 123
+
+auto_start: false
+dedup_sec: 300              # 同关键词最小触发间隔（秒）
+capture_mode: browser       # browser | desktop | full
+notify_on_trigger: silent   # silent | toast | alert

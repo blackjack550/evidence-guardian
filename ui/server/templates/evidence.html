@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>证据卫士 · 证据记录</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Microsoft YaHei",sans-serif;background:#f5f5f5;color:#333;padding:20px}
+.container{max-width:900px;margin:0 auto}
+h1{font-size:22px;margin-bottom:20px}
+.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+.row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0;gap:12px;flex-wrap:wrap}
+.row:last-child{border-bottom:none}
+.file-icon{font-size:18px;flex-shrink:0}
+.file-info{flex:1;min-width:0}
+.file-name{font-size:14px;font-weight:500;word-break:break-all}
+.file-meta{font-size:12px;color:#888;margin-top:2px}
+.file-date{font-size:12px;color:#888;min-width:70px}
+.btn-view{padding:4px 12px;border:1px solid #1a73e8;border-radius:4px;color:#1a73e8;cursor:pointer;font-size:13px;background:#fff;text-decoration:none}
+.btn-view:hover{background:#e8f0fe}
+.empty{padding:40px;text-align:center;color:#999;font-size:15px}
+#viewer{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:999;overflow:auto}
+#viewer img{display:block;margin:30px auto;max-width:95%;box-shadow:0 4px 20px rgba(0,0,0,0.3)}
+#viewer .close{position:fixed;top:16px;right:24px;font-size:32px;color:#fff;cursor:pointer;background:none;border:none}
+a{color:#1a73e8;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>📁 证据记录</h1>
+<div style="margin-bottom:12px;">
+  <a class="btn-view" href="/api/evidence/export-all" style="background:#e8f5e9;border-color:#2e7d32;color:#2e7d32;padding:8px 20px;display:inline-block;text-decoration:none;">📦 导出全部（ZIP打包）</a>
+</div>
+<div id="list"><div class="card empty">加载中...</div></div>
+<a href="/" style="display:inline-block;margin-top:12px;font-size:13px;">← 返回配置</a>
+</div>
+
+<div id="viewer" onclick="this.style.display='none'">
+  <button class="close" onclick="document.getElementById('viewer').style.display='none'">&times;</button>
+  <img id="viewerImg">
+</div>
+
+<script>
+function loadEvidence() {
+  fetch('/api/evidence').then(r=>r.json()).then(files=>{
+    const div = document.getElementById('list');
+    if (files.length === 0) {
+      div.innerHTML = '<div class="card empty">暂无证据记录</div>';
+      return;
+    }
+    div.innerHTML = files.map(f=>`
+      <div class="card">
+        <div class="row">
+          <span class="file-icon">${f.encrypted ? '🔒' : '🖼️'}</span>
+          <div class="file-info">
+            <div class="file-name">${f.name}</div>
+            <div class="file-meta">${(f.size/1024).toFixed(1)} KB ${f.encrypted ? '· 已加密' : ''}</div>
+          </div>
+          <span class="file-date">${f.date}</span>
+          <a class="btn-view" href="javascript:void(0)" onclick="viewEvidence('${f.path}')" style="margin-right:4px;">查看</a>
+          <a class="btn-view" href="/api/evidence/export?path=${encodeURIComponent(f.path)}" style="background:#fff3e0;border-color:#e65100;color:#e65100;" download>导出</a>
+        </div>
+      </div>
+    `).join('');
+  }).catch(()=>{
+    document.getElementById('list').innerHTML = '<div class="card empty">加载失败</div>';
+  });
+}
+
+function viewEvidence(path) {
+  const v = document.getElementById('viewer');
+  const img = document.getElementById('viewerImg');
+  img.src = ''; // clear first
+  img.src = '/api/evidence/view?path=' + encodeURIComponent(path);
+  img.onerror = function() { alert('无法加载图片，文件可能已损坏'); };
+  v.style.display = 'block';
+}
+
+loadEvidence();
+</script>
+</body>
+</html>

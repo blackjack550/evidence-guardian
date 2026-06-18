@@ -1,0 +1,41 @@
+# Build
+/bin/
+/dist/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Dependencies
+/vendor/
+
+# Config override (user-specific)
+config.local.yaml
+
+# Test output
+*.test.exe
+*.test.log
+
+# FFmpeg bundled
+/ffmpeg/
+/ffmpeg.exe
+
+# Evidence data
+/evidence/
+/data/
+
+# Build output
+*.exe
+*.log
+stdout*
+stderr*
+
+# Release packages
+/release/
