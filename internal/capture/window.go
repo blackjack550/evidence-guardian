@@ -37,6 +37,9 @@ type RECT struct {
 }
 
 func EnumWindows() ([]WindowInfo, error) {
+	// Build process name map ONCE to avoid per-window snapshot overhead
+	procNames := buildProcessMap()
+
 	var windows []WindowInfo
 
 	callback := syscall.NewCallback(func(hwnd uintptr, lparam uintptr) uintptr {
@@ -64,7 +67,7 @@ func EnumWindows() ([]WindowInfo, error) {
 			Title:       title,
 			ClassName:   className,
 			ProcessID:   pid,
-			ProcessName: getProcessName(pid),
+			ProcessName: procNames[pid],
 			Rect:        rect,
 		})
 		return 1
@@ -72,6 +75,27 @@ func EnumWindows() ([]WindowInfo, error) {
 
 	procEnumWindows.Call(callback, 0)
 	return windows, nil
+}
+
+func buildProcessMap() map[uint32]string {
+	m := make(map[uint32]string)
+	snapshot, _, _ := procCreateToolhelp32Snapshot.Call(0x00000002, 0)
+	if snapshot == 0 || snapshot == uintptr(^uint32(0)) {
+		return m
+	}
+	defer syscall.CloseHandle(syscall.Handle(snapshot))
+
+	var entry _PROCESSENTRY32W
+	entry.dwSize = uint32(unsafe.Sizeof(entry))
+
+	ret, _, _ := procProcess32FirstW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
+	for ret != 0 {
+		pid := entry.th32ProcessID
+		name := syscall.UTF16ToString(entry.szExeFile[:])
+		m[pid] = name
+		ret, _, _ = procProcess32NextW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
+	}
+	return m
 }
 
 func FindTargetWindows(targets []AppTarget) ([]WindowInfo, error) {
@@ -105,29 +129,6 @@ type _PROCESSENTRY32W struct {
 	pcPriClassBase      int32
 	dwFlags             uint32
 	szExeFile           [260]uint16
-}
-
-func getProcessName(pid uint32) string {
-	// Check common viewer processes immediately without snapshot
-	// (snapshot is expensive, so we batch it in EnumWindows instead)
-	// Simple cache would be better but for now use direct snapshot per call
-	snapshot, _, _ := procCreateToolhelp32Snapshot.Call(0x00000002, 0) // TH32CS_SNAPPROCESS
-	if snapshot == 0 || snapshot == uintptr(^uint32(0)) {
-		return ""
-	}
-	defer syscall.CloseHandle(syscall.Handle(snapshot))
-
-	var entry _PROCESSENTRY32W
-	entry.dwSize = uint32(unsafe.Sizeof(entry))
-
-	ret, _, _ := procProcess32FirstW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
-	for ret != 0 {
-		if entry.th32ProcessID == pid {
-			return syscall.UTF16ToString(entry.szExeFile[:])
-		}
-		ret, _, _ = procProcess32NextW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
-	}
-	return ""
 }
 
 func (w WindowInfo) String() string {

@@ -381,6 +381,8 @@ func (e *Engine) scanIMWindows(dedup *ocrDedup) {
 			continue
 		}
 
+		// Free large image before OCR to reduce peak memory
+		img = nil
 		text, err := e.ocrEngine.RecognizeBytes(data)
 		if err != nil {
 			continue
@@ -407,6 +409,9 @@ func (e *Engine) scanIMWindows(dedup *ocrDedup) {
 }
 
 func (e *Engine) scanDesktopOCR(d *ocrDedup) {
+	if e.ocrEngine == nil || !e.ocrEngine.IsReady() {
+		return
+	}
 	n := screenshot.NumActiveDisplays()
 	if n == 0 {
 		return
@@ -428,6 +433,8 @@ func (e *Engine) scanDesktopOCR(d *ocrDedup) {
 	} else if f != nil {
 		f.Close()
 	}
+	// Free large image immediately
+	img = nil
 	data, _ := os.ReadFile(tmpPath)
 	os.Remove(tmpPath)
 	if len(data) == 0 {

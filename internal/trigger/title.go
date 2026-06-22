@@ -11,11 +11,13 @@ import (
 )
 
 var excludeProcesses = map[string]bool{
-	"dllhost.exe":          true, // Windows Photo Viewer
-	"Microsoft.Photos.exe": true, // Windows Photos app
-	"PhotoViewer.dll":      true,
-	"explorer.exe":         true, // File Explorer
-
+	"dllhost.exe":           true, // Windows Photo Viewer
+	"Microsoft.Photos.exe":  true, // Windows Photos app
+	"PhotoViewer.dll":       true,
+	"explorer.exe":          true, // File Explorer
+	"mspaint.exe":           true, // 画图
+	"notepad.exe":           true, // 记事本
+	"wordpad.exe":           true, // 写字板
 }
 
 type TitleMonitor struct {
