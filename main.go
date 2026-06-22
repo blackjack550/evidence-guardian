@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"syscall"
 
@@ -21,6 +22,15 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("═══════════════════════════════════════════")
+			log.Printf("程序崩溃! panic: %v", r)
+			log.Printf("堆栈: %s", debug.Stack())
+			log.Printf("═══════════════════════════════════════════")
+		}
+	}()
+
 	decryptCmd := flag.String("decrypt", "", "解密证据文件: -decrypt=口令 -dir=证据目录")
 	decryptDir := flag.String("dir", "./evidence", "待解密的证据目录")
 	flag.Parse()
@@ -32,10 +42,10 @@ func main() {
 
 	exeDir := filepath.Dir(os.Args[0])
 	cfgPath := filepath.Join(exeDir, "config.yaml")
-	logFile, err := os.OpenFile(
-		filepath.Join(exeDir, "evidence-guardian.log"),
-		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644,
-	)
+
+	// Open log file (append mode)
+	logPath := filepath.Join(exeDir, "evidence-guardian.log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
 		log.SetOutput(io.MultiWriter(logFile, os.Stderr))
 		defer logFile.Close()
@@ -43,27 +53,48 @@ func main() {
 		log.SetOutput(os.Stderr)
 	}
 
-	log.Println("证据卫士 v0.2.0 — 劳动者权益保护取证系统")
+	// Open crash log (separate file, always create new)
+	crashPath := filepath.Join(exeDir, "crash.log")
+	crashFile, err := os.OpenFile(crashPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		defer crashFile.Close()
+	}
+
+	logCrash := func(format string, args ...interface{}) {
+		msg := fmt.Sprintf(format, args...)
+		log.Print(msg)
+		if crashFile != nil {
+			fmt.Fprintln(crashFile, msg)
+			crashFile.Sync()
+		}
+	}
+
+	logCrash("=== 证据卫士 v0.2.0 启动 ===")
+	logCrash("工作目录: %s", exeDir)
 
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		log.Fatalf("加载配置失败: %v", err)
+		logCrash("加载配置失败: %v", err)
+		return
 	}
 
-	// Make storage path absolute to exe directory
 	if !filepath.IsAbs(cfg.Storage.Path) {
 		cfg.Storage.Path = filepath.Join(exeDir, cfg.Storage.Path)
 	}
 
 	store, err := storage.New(cfg.Storage)
 	if err != nil {
-		log.Fatalf("初始化存储失败: %v", err)
+		logCrash("初始化存储失败: %v", err)
+		return
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	engine := trigger.NewEngine(cfg, store)
+	engine.SetCrashLog(func(msg string) {
+		logCrash(msg)
+	})
 
 	webServer := server.New(cfg, engine)
 	if err := webServer.Start(ctx); err != nil {
@@ -80,11 +111,22 @@ func main() {
 		log.Printf("管理面板: http://127.0.0.1:%d", webServer.Port())
 	}
 
-	tray.Run(cfg, engine, store, webServer)
+	// Monitor for exit
+	exitCh := make(chan string, 1)
+	go func() {
+		tray.Run(cfg, engine, store, webServer)
+		exitCh <- "tray_exit"
+	}()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigCh
+		exitCh <- fmt.Sprintf("signal_%v", sig)
+	}()
+
+	reason := <-exitCh
+	logCrash("=== 程序退出 原因:%s ===", reason)
 
 	engine.Stop()
 	webServer.Stop()
@@ -95,7 +137,6 @@ func runDecrypt(passphrase, dir string) {
 	fmt.Println("证据卫士 — 批量解密工具")
 	fmt.Println(strings.Repeat("-", 40))
 
-	// Detect encryption method
 	method := crypto.MethodDPAPI
 	if passphrase != "" {
 		method = crypto.MethodPassphrase
@@ -141,8 +182,3 @@ func runDecrypt(passphrase, dir string) {
 		fmt.Printf("明文文件已保存在原目录，文件名已去除 .enc 后缀\n")
 	}
 }
-
-
-
-
-

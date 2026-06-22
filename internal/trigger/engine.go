@@ -27,6 +27,20 @@ type Engine struct {
 	hotkey        *HotkeyManager
 	ocrEngine     *ocr.Engine
 	notifyHandler func(title, message string)
+	crashLog      func(msg string)
+}
+
+func (e *Engine) SetCrashLog(h func(msg string)) {
+	e.crashLog = h
+}
+
+func (e *Engine) cl(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	if e.crashLog != nil {
+		e.crashLog(msg)
+	} else {
+		log.Print(msg)
+	}
 }
 
 func (e *Engine) SetNotifyHandler(h func(title, message string)) {
@@ -65,7 +79,7 @@ func (e *Engine) Start(ctx context.Context) {
 func (e *Engine) titleLoop(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[崩溃恢复] titleLoop: %v", r)
+			e.cl("[崩溃] titleLoop: %v", r)
 			go e.titleLoop(ctx)
 		}
 	}()
@@ -92,7 +106,7 @@ func (e *Engine) titleLoop(ctx context.Context) {
 func (e *Engine) hotkeyLoop(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[崩溃恢复] hotkeyLoop: %v", r)
+			e.cl("[崩溃] hotkeyLoop: %v", r)
 			go e.hotkeyLoop(ctx)
 		}
 	}()
@@ -180,7 +194,7 @@ func (e *Engine) collect(source string, keyword string, win capture.WindowInfo) 
 func (e *Engine) browserLoop(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[崩溃恢复] browserLoop: %v", r)
+			e.cl("[崩溃] browserLoop: %v", r)
 			go e.browserLoop(ctx)
 		}
 	}()
@@ -278,7 +292,7 @@ var ocrOnce sync.Once
 func (e *Engine) ocrLoop(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[崩溃恢复] ocrLoop: %v", r)
+			e.cl("[崩溃] ocrLoop: %v", r)
 			go e.ocrLoop(ctx)
 		}
 	}()
@@ -308,7 +322,7 @@ func (e *Engine) ocrLoop(ctx context.Context) {
 func (e *Engine) scanIMWindows(dedup *ocrDedup) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[崩溃恢复] scanIMWindows: %v", r)
+			e.cl("[崩溃] scanIMWindows: %v", r)
 		}
 	}()
 	// Find IM windows (all enabled targets except Chrome/Edge)
